@@ -13,6 +13,7 @@ import jwt from "jsonwebtoken";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import swaggerSetup from "./swagger/swagger.js";
+import sessionRoutes from "./routes/sessionRoutes.js";
 
 dotenv.config();
 
@@ -47,7 +48,7 @@ app.use(cookieParser());
 // Routes Mounting
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
-
+app.use("/sessions", sessionRoutes);
 // Swagger
 swaggerSetup(app);
 

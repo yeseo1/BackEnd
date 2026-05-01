@@ -141,6 +141,74 @@ export const swaggerSpec = {
         },
       },
     },
+        "/sessions": {
+      post: {
+        summary: "세션 생성",
+        tags: ["Sessions"],
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["relationshipType"],
+                properties: {
+                  relationshipType: {
+                    type: "string",
+                    enum: ["COUPLE", "FRIEND", "FAMILY", "ROOMMATE", "TEAM", "OTHER"],
+                  },
+                  mode: {
+                    type: "string",
+                    enum: ["DUAL", "SELF"],
+                    default: "DUAL",
+                  },
+                },
+              },
+              examples: {
+                createSession: {
+                  value: {
+                    relationshipType: "FRIEND",
+                    mode: "DUAL",
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "세션 생성 성공" },
+          "400": { description: "입력 검증 실패" },
+          "401": { description: "인증 실패 또는 로그인 필요" },
+          "500": { description: "세션 생성 실패" },
+        },
+      },
+    },
+    "/sessions/{sessionId}/join": {
+      post: {
+        summary: "세션 참여",
+        tags: ["Sessions"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        ],
+        responses: {
+          "200": { description: "세션 참여 성공" },
+          "401": { description: "인증 실패 또는 로그인 필요" },
+          "404": { description: "세션 없음" },
+          "409": { description: "이미 참여했거나 정원 초과" },
+          "500": { description: "세션 참여 실패" },
+        },
+      },
+    },
   },
 };
 
