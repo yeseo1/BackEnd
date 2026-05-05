@@ -11,10 +11,17 @@ const VALID_RELATIONSHIP_TYPES = [
 
 const VALID_MODES = ["DUAL", "SELF"];
 
+function isValidRoomPassword(roomPassword) {
+  return (
+    typeof roomPassword === "string" &&
+    /^[0-9]{4}$/.test(roomPassword)
+  );
+}
+
 export const sessionController = {
   async createSession(req, res) {
     try {
-      const { relationshipType, mode } = req.body;
+      const { relationshipType, mode, roomPassword } = req.body;
 
       if (!relationshipType || !VALID_RELATIONSHIP_TYPES.includes(relationshipType)) {
         return res.status(400).json({
@@ -36,10 +43,21 @@ export const sessionController = {
         });
       }
 
+      if (!isValidRoomPassword(roomPassword)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "roomPassword는 숫자 4자리여야 합니다.",
+          },
+        });
+      }
+
       const result = await sessionModel.createSession({
         ownerUserId: req.user.id,
         relationshipType,
         mode: mode || "DUAL",
+        roomPassword,
       });
 
       return res.status(201).json({
@@ -61,10 +79,22 @@ export const sessionController = {
   async joinSession(req, res) {
     try {
       const { sessionId } = req.params;
+      const { roomPassword } = req.body;
+
+      if (!isValidRoomPassword(roomPassword)) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "roomPassword는 숫자 4자리여야 합니다.",
+          },
+        });
+      }
 
       const result = await sessionModel.joinSession({
         sessionId,
         userId: req.user.id,
+        roomPassword,
       });
 
       return res.status(200).json({
@@ -77,6 +107,16 @@ export const sessionController = {
         return res.status(404).json({
           success: false,
           error: { code: "SESSION_NOT_FOUND", message: "세션 없음" },
+        });
+      }
+
+      if (error.message === "INVALID_ROOM_PASSWORD") {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: "INVALID_ROOM_PASSWORD",
+            message: "방 비밀번호가 올바르지 않습니다.",
+          },
         });
       }
 

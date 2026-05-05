@@ -1,11 +1,15 @@
+import bcrypt from "bcrypt";
+
 import { db } from "../config/db.js";
 
 export const sessionModel = {
-  async createSession({ ownerUserId, relationshipType, mode }) {
+  async createSession({ ownerUserId, relationshipType, mode, roomPassword }) {
     const client = await db.connect();
 
     try {
       await client.query("BEGIN");
+
+      const roomPasswordHash = await bcrypt.hash(roomPassword, 10);
 
       const sessionResult = await client.query(
         `
@@ -14,18 +18,19 @@ export const sessionModel = {
           status,
           relationship_type,
           mode,
+          room_password_hash,
           created_at,
           updated_at
         )
-        VALUES ($1, 'WAITING_INPUT', $2, $3, NOW(), NOW())
-        RETURNING *
+        VALUES ($1, 'WAITING_INPUT', $2, $3, $4, NOW(), NOW())
+        RETURNING id, owner_user_id, status, relationship_type, mode, created_at, updated_at
         `,
-        [ownerUserId, relationshipType, mode],
+        [ownerUserId, relationshipType, mode, roomPasswordHash],
       );
 
       const session = sessionResult.rows[0];
 
-      await client.query(
+      const participantResult = await client.query(
         `
         INSERT INTO session_participants (
           session_id,
@@ -34,13 +39,19 @@ export const sessionModel = {
           joined_at
         )
         VALUES ($1, $2, 'A', NOW())
+        RETURNING id, session_id, user_id, role, joined_at
         `,
         [session.id, ownerUserId],
       );
 
       await client.query("COMMIT");
 
-      return session;
+      return {
+        ...session,
+        role: "A",
+        participant: participantResult.rows[0],
+        inviteLink: `${process.env.FRONTEND_URL}/invite/${session.id}`,
+      };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -49,34 +60,59 @@ export const sessionModel = {
     }
   },
 
-  async joinSession({ sessionId, userId }) {
+  async joinSession({ sessionId, userId, roomPassword }) {
     const client = await db.connect();
 
     try {
       await client.query("BEGIN");
 
       const sessionResult = await client.query(
-        `SELECT * FROM sessions WHERE id = $1`,
+        `
+        SELECT id, owner_user_id, status, relationship_type, mode, room_password_hash, created_at, updated_at
+        FROM sessions
+        WHERE id = $1
+        LIMIT 1
+        `,
         [sessionId],
       );
 
       if (!sessionResult.rows.length) throw new Error("SESSION_NOT_FOUND");
 
+      const session = sessionResult.rows[0];
+
+      const isValidPassword = await bcrypt.compare(
+        roomPassword,
+        session.room_password_hash,
+      );
+
+      if (!isValidPassword) {
+        throw new Error("INVALID_ROOM_PASSWORD");
+      }
+
       const already = await client.query(
-        `SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2`,
+        `
+        SELECT id
+        FROM session_participants
+        WHERE session_id = $1 AND user_id = $2
+        LIMIT 1
+        `,
         [sessionId, userId],
       );
 
       if (already.rows.length) throw new Error("ALREADY_JOINED");
 
       const count = await client.query(
-        `SELECT COUNT(*) FROM session_participants WHERE session_id = $1`,
+        `
+        SELECT COUNT(*)::int AS count
+        FROM session_participants
+        WHERE session_id = $1
+        `,
         [sessionId],
       );
 
-      if (parseInt(count.rows[0].count) >= 2) throw new Error("SESSION_FULL");
+      if (count.rows[0].count >= 2) throw new Error("SESSION_FULL");
 
-      await client.query(
+      const participantResult = await client.query(
         `
         INSERT INTO session_participants (
           session_id,
@@ -85,18 +121,28 @@ export const sessionModel = {
           joined_at
         )
         VALUES ($1, $2, 'B', NOW())
+        RETURNING id, session_id, user_id, role, joined_at
         `,
         [sessionId, userId],
       );
 
       await client.query(
-        `UPDATE sessions SET status='READY', updated_at=NOW() WHERE id=$1`,
+        `
+        UPDATE sessions
+        SET updated_at = NOW()
+        WHERE id = $1
+        `,
         [sessionId],
       );
 
       await client.query("COMMIT");
 
-      return { sessionId };
+      return {
+        sessionId: session.id,
+        role: "B",
+        status: session.status,
+        participant: participantResult.rows[0],
+      };
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
