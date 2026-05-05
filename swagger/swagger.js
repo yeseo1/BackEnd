@@ -152,7 +152,7 @@ export const swaggerSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["relationshipType"],
+                required: ["relationshipType", "roomPassword"],
                 properties: {
                   relationshipType: {
                     type: "string",
@@ -162,14 +162,19 @@ export const swaggerSpec = {
                     type: "string",
                     enum: ["DUAL", "SELF"],
                     default: "DUAL",
-                  },
-                },
+                 },
+                roomPassword: {
+                  type: "string",
+                  example: "1234"
+                }
               },
+            },
               examples: {
                 createSession: {
                   value: {
                     relationshipType: "FRIEND",
                     mode: "DUAL",
+                    roomPassword: "1234",
                   },
                 },
               },
@@ -200,6 +205,23 @@ export const swaggerSpec = {
             },
           },
         ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["roomPassword"],
+                properties: {
+                  roomPassword: {
+                    type: "string",
+                    example: "1234"
+                  }
+                }
+              }
+            }
+          }
+        },
         responses: {
           "200": { description: "세션 참여 성공" },
           "401": { description: "인증 실패 또는 로그인 필요" },
