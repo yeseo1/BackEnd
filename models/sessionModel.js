@@ -150,4 +150,43 @@ export const sessionModel = {
       client.release();
     }
   },
+
+  async getSessionStatus({ sessionId, userId }) {
+    const client = await db.connect();
+
+    try {
+      const result = await client.query(
+        `
+        SELECT 
+          s.id,
+          s.status,
+          sp.role,
+          COUNT(it.id) AS input_count
+        FROM sessions s
+        JOIN session_participants sp 
+          ON s.id = sp.session_id
+        LEFT JOIN input_texts it 
+          ON s.id = it.session_id
+        WHERE s.id = $1 
+          AND sp.user_id = $2
+        GROUP BY s.id, s.status, sp.role
+        `,
+        [sessionId, userId]
+      );
+
+      if (!result.rows.length) return null;
+
+      const row = result.rows[0];
+
+      return {
+        id: row.id,
+        status: row.status,
+        role: row.role,
+        bothSubmitted: parseInt(row.input_count) >= 2,
+      };
+
+    } finally {
+      client.release();
+    }
+  }
 };

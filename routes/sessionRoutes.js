@@ -6,5 +6,6 @@ const router = express.Router();
 
 router.post("/", requireAuth, sessionController.createSession);
 router.post("/:sessionId/join", requireAuth, sessionController.joinSession);
+router.get("/:sessionId/status", requireAuth, sessionController.getSessionStatus);
 
 export default router;

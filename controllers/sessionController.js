@@ -140,4 +140,44 @@ export const sessionController = {
       });
     }
   },
+
+  async getSessionStatus(req, res) {
+    try {
+      const { sessionId } = req.params;
+
+      const session = await sessionModel.getSessionStatus({
+        sessionId,
+        userId: req.user.id,
+      });
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: "SESSION_NOT_FOUND",
+            message: "세션을 찾을 수 없습니다.",
+          },
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          sessionId: session.id,
+          status: session.status,
+          myRole: session.role,
+          bothSubmitted: session.bothSubmitted,
+        },
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: "SESSION_STATUS_FAILED",
+          message: "세션 상태 조회 실패",
+        },
+      });
+    }
+  }
 };

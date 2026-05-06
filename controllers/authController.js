@@ -165,4 +165,29 @@ export const authController = {
       });
     }
   },
+
+  async googleLogout(req, res) {
+  try {
+    res.clearCookie(process.env.COOKIE_NAME || "tigyeok_session", {
+      httpOnly: true,
+      secure: process.env.COOKIE_SECURE === "true",
+      sameSite: "lax",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "로그아웃 성공",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: "LOGOUT_FAILED",
+        message: "로그아웃 처리 중 오류 발생",
+        details: error.message,
+      },
+    });
+  }
+}
 };

@@ -48,6 +48,30 @@ export const swaggerSpec = {
         },
       },
     },
+    "/auth/google/logout": {
+      post: {
+        summary: "로그아웃",
+        tags: ["Auth"],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "로그아웃 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    message: { type: "string", example: "로그아웃 성공" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { description: "인증 실패" }
+        }
+      }
+    },
     "/auth/google/callback": {
       get: {
         summary: "Google OAuth callback",
@@ -257,56 +281,128 @@ export const swaggerSpec = {
       },
     },
     "/sessions/{sessionId}/inputs": {
-  post: {
-    summary: "세션 원문 입력 제출",
-    tags: ["Inputs"],
-    security: [{ bearerAuth: [] }],
-    parameters: [
-      {
-        name: "sessionId",
-        in: "path",
-        required: true,
-        schema: {
-          type: "string",
-          format: "uuid",
-        },
-      },
-    ],
-    requestBody: {
-      required: true,
-      content: {
-        "application/json": {
-          schema: {
-            type: "object",
-            required: ["rawText"],
-            properties: {
-              rawText: {
-                type: "string",
-                example: "오늘 있었던 갈등 상황을 작성합니다.",
+      post: {
+        summary: "세션 원문 입력 제출",
+        tags: ["Inputs"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["rawText"],
+                properties: {
+                  rawText: {
+                    type: "string",
+                    example: "오늘 있었던 갈등 상황을 작성합니다.",
+                  },
+                },
+              },
+              examples: {
+                submitInput: {
+                  value: {
+                    rawText: "오늘 있었던 갈등 상황을 작성합니다.",
+                  },
+                },
               },
             },
           },
-          examples: {
-            submitInput: {
-              value: {
-                rawText: "오늘 있었던 갈등 상황을 작성합니다.",
+        },
+        responses: {
+          "201": { description: "입력 저장 성공" },
+          "400": { description: "입력 검증 실패" },
+          "401": { description: "인증 실패 또는 로그인 필요" },
+          "403": { description: "세션 참여자가 아님" },
+          "404": { description: "세션 없음" },
+          "409": { description: "이미 입력 제출됨" },
+          "500": { description: "입력 저장 실패" },
+        },
+      },
+    },
+    
+    "/sessions/{sessionId}/status": {
+      get: {
+        summary: "세션 상태 조회",
+        description: "현재 세션의 상태, 사용자 역할, 입력 완료 여부를 반환합니다.",
+        tags: ["Sessions"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+            description: "조회할 세션 ID",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "세션 상태 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: {
+                      type: "boolean",
+                      example: true,
+                    },
+                    data: {
+                      type: "object",
+                      properties: {
+                        sessionId: {
+                          type: "string",
+                          example: "b3c1e2d4-1234-5678-9abc-abcdef123456",
+                        },
+                        status: {
+                          type: "string",
+                          example: "ANALYZING",
+                          description: "세션 상태 (WAITING_INPUT / ANALYZING / COMPLETED 등)",
+                        },
+                        myRole: {
+                          type: "string",
+                          example: "A",
+                          description: "현재 사용자의 역할",
+                        },
+                        bothSubmitted: {
+                          type: "boolean",
+                          example: true,
+                          description: "양측 입력 완료 여부",
+                        },
+                      },
+                    },
+                  },
+                },
               },
             },
+          },
+          "401": {
+            description: "인증 실패 또는 로그인 필요",
+          },
+          "404": {
+            description: "세션을 찾을 수 없음",
+          },
+          "500": {
+            description: "세션 상태 조회 실패",
           },
         },
       },
     },
-    responses: {
-      "201": { description: "입력 저장 성공" },
-      "400": { description: "입력 검증 실패" },
-      "401": { description: "인증 실패 또는 로그인 필요" },
-      "403": { description: "세션 참여자가 아님" },
-      "404": { description: "세션 없음" },
-      "409": { description: "이미 입력 제출됨" },
-      "500": { description: "입력 저장 실패" },
-    },
-  },
-},
   },
 };
 

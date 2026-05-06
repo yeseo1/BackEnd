@@ -81,7 +81,7 @@ export const inputModel = {
         const updatedSessionResult = await client.query(
           `
           UPDATE sessions
-          SET status = 'READY',
+          SET status = 'ANALYZING',
               updated_at = NOW()
           WHERE id = $1
           RETURNING status
