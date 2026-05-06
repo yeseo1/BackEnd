@@ -80,6 +80,33 @@
         }
       }
     },
+    "/users/me": {
+      "get": {
+        "summary": "로그인 사용자 프로필 조회",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "프로필 조회 성공"
+          },
+          "401": {
+            "description": "인증 실패 또는 로그인 필요"
+          },
+          "404": {
+            "description": "사용자 없음"
+          },
+          "500": {
+            "description": "프로필 조회 실패"
+          }
+        }
+      }
+    },
     "/users/me/profile": {
       "patch": {
         "summary": "로그인 사용자 프로필 저장",
