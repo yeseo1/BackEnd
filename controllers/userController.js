@@ -3,6 +3,36 @@ import { profileModel } from "../models/profileModel.js";
 const VALID_GENDERS = ["M", "F", "OTHER", "UNSPECIFIED"];
 
 export const userController = {
+  async getMyProfile(req, res) {
+    try {
+      const user = await profileModel.findById(req.user.id);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: "USER_NOT_FOUND",
+            message: "사용자를 찾을 수 없습니다.",
+          },
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "프로필을 조회했습니다.",
+        data: user,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: "PROFILE_FETCH_FAILED",
+          message: "프로필 조회 중 오류가 발생했습니다.",
+        },
+      });
+    }
+  },
+
   async updateMyProfile(req, res) {
     try {
       const { gender, age } = req.body;
