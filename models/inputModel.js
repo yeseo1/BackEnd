@@ -92,7 +92,7 @@ export const inputModel = {
       );
 
       let status = session.status;
-      const requiredInputCount = session.mode === "SELF" ? 1 : 2;
+      const requiredInputCount = session.mode === "SINGLE" ? 1 : 2;
 
       if (countResult.rows[0].count >= requiredInputCount) {
         const updatedSessionResult = await client.query(
@@ -137,6 +137,19 @@ export const inputModel = {
     return result.rows;
   },
 
+  async updateSessionStatus({ sessionId, status }) {
+    const query = `
+      UPDATE sessions
+      SET status = $2,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, status, updated_at
+    `;
+
+    const result = await db.query(query, [sessionId, status]);
+    return result.rows[0] || null;
+  },
+
   async saveStatements({ sessionId, statements }) {
     if (!statements?.length) return [];
 
@@ -178,6 +191,138 @@ export const inputModel = {
 
       await client.query("COMMIT");
       return inserted;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  async saveDualAnalysisArtifacts({
+    sessionId,
+    aStatements,
+    bStatements,
+    alignedPairs,
+    tensions,
+  }) {
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const aStatementIdByIndex = new Map(
+        (aStatements || []).map((statement, index) => [index, statement.id]),
+      );
+      const bStatementIdByIndex = new Map(
+        (bStatements || []).map((statement, index) => [index, statement.id]),
+      );
+
+      const savedAlignmentPairs = [];
+
+      for (const pair of alignedPairs || []) {
+        const aStatementId = aStatementIdByIndex.get(pair.a_index);
+        const bStatementId = bStatementIdByIndex.get(pair.b_index);
+
+        if (!aStatementId || !bStatementId) {
+          continue;
+        }
+
+        const result = await client.query(
+          `
+          INSERT INTO alignment_pairs (
+            session_id,
+            a_statement_id,
+            b_statement_id,
+            similarity,
+            pair_type
+          )
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING id, session_id, a_statement_id, b_statement_id, similarity, pair_type
+          `,
+          [
+            sessionId,
+            aStatementId,
+            bStatementId,
+            pair.similarity,
+            pair.pair_type,
+          ],
+        );
+
+        savedAlignmentPairs.push(result.rows[0]);
+      }
+
+      const savedTensions = [];
+
+      for (const tension of tensions || []) {
+        const tensionResult = await client.query(
+          `
+          INSERT INTO tensions (
+            session_id,
+            type,
+            rationale,
+            created_at
+          )
+          VALUES ($1, $2, $3, NOW())
+          RETURNING id, session_id, type, rationale, created_at
+          `,
+          [sessionId, tension.type, tension.rationale],
+        );
+
+        const savedTension = {
+          ...tensionResult.rows[0],
+          score: tension.score,
+          evidence_count: 0,
+        };
+
+        const evidenceStatementIds = new Set();
+
+        for (const evidence of tension.evidence || []) {
+          if (typeof evidence.a_index === "number") {
+            const statementId = aStatementIdByIndex.get(evidence.a_index);
+            if (statementId) evidenceStatementIds.add(statementId);
+          }
+
+          if (typeof evidence.b_index === "number") {
+            const statementId = bStatementIdByIndex.get(evidence.b_index);
+            if (statementId) evidenceStatementIds.add(statementId);
+          }
+
+          if (evidence.side === "A" && typeof evidence.statement_index === "number") {
+            const statementId = aStatementIdByIndex.get(evidence.statement_index);
+            if (statementId) evidenceStatementIds.add(statementId);
+          }
+
+          if (evidence.side === "B" && typeof evidence.statement_index === "number") {
+            const statementId = bStatementIdByIndex.get(evidence.statement_index);
+            if (statementId) evidenceStatementIds.add(statementId);
+          }
+        }
+
+        for (const statementId of evidenceStatementIds) {
+          await client.query(
+            `
+            INSERT INTO tension_evidence (
+              tension_id,
+              statement_id
+            )
+            VALUES ($1, $2)
+            ON CONFLICT (tension_id, statement_id) DO NOTHING
+            `,
+            [savedTension.id, statementId],
+          );
+        }
+
+        savedTension.evidence_count = evidenceStatementIds.size;
+        savedTensions.push(savedTension);
+      }
+
+      await client.query("COMMIT");
+
+      return {
+        alignmentPairs: savedAlignmentPairs,
+        tensions: savedTensions,
+      };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

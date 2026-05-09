@@ -1,7 +1,8 @@
 import OpenAI from "openai";
-import axios from "axios";
 
 import { inputModel } from "../models/inputModel.js";
+import { splitIntoStatements } from "../utils/statementSplitter.js";
+import { selectKeyTensions } from "../utils/tensionSelector.js";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -28,11 +29,27 @@ async function moderateText(input) {
   };
 }
 
-function splitStatements(rawText) {
-  return rawText
-    .split(/(?<=[.!?。！？])\s+|[\n\r]+/)
-    .map((text) => text.trim())
-    .filter(Boolean);
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const error = new Error("MODEL_SERVER_REQUEST_FAILED");
+    error.response = {
+      status: response.status,
+      data,
+    };
+    throw error;
+  }
+
+  return { data };
 }
 
 function findSpan(rawText, text) {
@@ -53,6 +70,7 @@ function findSpan(rawText, text) {
 
 function toStatements(results, speaker, rawText) {
   return (results || []).map((result) => ({
+    sourceIndex: result.index,
     speaker,
     text: result.text,
     label: result.label,
@@ -103,10 +121,15 @@ export const inputController = {
       let feinAnalysisStatus = "SKIPPED";
 
       try {
-        if (result.mode === "SELF") {
-          const statementsInput = splitStatements(cleanedText);
+        if (result.mode === "SINGLE" && result.status === "READY") {
+          await inputModel.updateSessionStatus({
+            sessionId,
+            status: "ANALYZING",
+          });
 
-          const classifyResponse = await axios.post(
+          const statementsInput = splitIntoStatements(cleanedText);
+
+          const classifyResponse = await postJson(
             `${FEIN_MODEL_BASE_URL}/internal/fein/classify`,
             {
               statements: statementsInput.length ? statementsInput : [cleanedText],
@@ -124,19 +147,29 @@ export const inputController = {
             statements,
           });
 
+          await inputModel.updateSessionStatus({
+            sessionId,
+            status: "DONE",
+          });
+
           feinAnalysisStatus = "DONE";
         }
 
         if (result.mode === "DUAL" && result.status === "READY") {
+          await inputModel.updateSessionStatus({
+            sessionId,
+            status: "ANALYZING",
+          });
+
           const inputs = await inputModel.getSessionInputs({ sessionId });
 
           const aInput = inputs.find((row) => row.speaker === "A");
           const bInput = inputs.find((row) => row.speaker === "B");
 
-          const aStatementsInput = aInput ? splitStatements(aInput.raw_text) : [];
-          const bStatementsInput = bInput ? splitStatements(bInput.raw_text) : [];
+          const aStatementsInput = aInput ? splitIntoStatements(aInput.raw_text) : [];
+          const bStatementsInput = bInput ? splitIntoStatements(bInput.raw_text) : [];
 
-          const analyzeResponse = await axios.post(
+          const analyzeResponse = await postJson(
             `${FEIN_MODEL_BASE_URL}/internal/fein/analyze-dual`,
             {
               a_statements: aStatementsInput.length
@@ -164,14 +197,47 @@ export const inputController = {
             bInput?.raw_text || "",
           );
 
-          await inputModel.saveStatements({
+          const savedStatements = await inputModel.saveStatements({
             sessionId,
             statements: [...aStatements, ...bStatements],
           });
 
+          const savedAStatements = savedStatements.filter(
+            (statement) => statement.speaker === "A",
+          );
+          const savedBStatements = savedStatements.filter(
+            (statement) => statement.speaker === "B",
+          );
+
+          const selectedTensions = selectKeyTensions(
+            analyzeResponse.data?.data?.tension_candidates,
+          );
+
+          const savedArtifacts = await inputModel.saveDualAnalysisArtifacts({
+            sessionId,
+            aStatements: savedAStatements,
+            bStatements: savedBStatements,
+            alignedPairs: analyzeResponse.data?.data?.aligned_pairs || [],
+            tensions: selectedTensions,
+          });
+
+          await inputModel.updateSessionStatus({
+            sessionId,
+            status: "DONE",
+          });
+
           feinAnalysisStatus = "DONE";
+
+          result.analysisArtifacts = {
+            alignedPairCount: savedArtifacts.alignmentPairs.length,
+            tensionCount: savedArtifacts.tensions.length,
+          };
         }
       } catch (feinError) {
+        await inputModel.updateSessionStatus({
+          sessionId,
+          status: "FAILED",
+        });
         feinAnalysisStatus = "FAILED";
         console.error(
           "FEIN model analysis failed",
