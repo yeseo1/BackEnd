@@ -380,6 +380,73 @@ export const swaggerSpec = {
     },
   },
 },
+    "/sessions/{sessionId}/analysis-status": {
+      get: {
+        tags: ["Analysis"],
+        summary: "세션 분석 상태 조회",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "sessionId",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        ],
+        responses: {
+          200: {
+            description: "분석 상태 조회 성공",
+          },
+          403: {
+            description: "세션 참여자가 아님",
+          },
+          404: {
+            description: "세션 없음",
+          },
+          500: {
+            description: "서버 오류",
+          },
+        },
+      },
+    },
+    "/sessions/{sessionId}/results/dual": {
+      get: {
+        tags: ["Analysis"],
+        summary: "2인 모드 분석 결과 조회",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: "path",
+            name: "sessionId",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        ],
+        responses: {
+          200: {
+            description: "2인 모드 결과 조회 성공",
+          },
+          403: {
+            description: "세션 참여자가 아님",
+          },
+          404: {
+            description: "세션 없음",
+          },
+          409: {
+            description: "2인 모드 세션이 아님",
+          },
+          500: {
+            description: "서버 오류",
+          },
+        },
+      },
+    },
   },
 };
 
