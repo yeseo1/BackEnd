@@ -307,6 +307,79 @@ export const swaggerSpec = {
     },
   },
 },
+"/sessions/{sessionId}/analysis": {
+  get: {
+    tags: ["Analysis"],
+    summary: "세션 분석 결과 조회",
+    description: "세션의 FEIN 분석 결과(statements)를 조회합니다.",
+    security: [{ bearerAuth: [] }],
+    parameters: [
+      {
+        in: "path",
+        name: "sessionId",
+        required: true,
+        schema: {
+          type: "string",
+          format: "uuid",
+        },
+        description: "세션 ID",
+      },
+    ],
+    responses: {
+      200: {
+        description: "분석 결과 조회 성공",
+        content: {
+          "application/json": {
+            example: {
+              success: true,
+              message: "분석 결과 조회 성공",
+              data: {
+                session: {
+                  id: "77605395-0c16-4156-a4a9-6951e91582be",
+                  status: "READY",
+                  relationship_type: "COUPLE",
+                  mode: "DUAL",
+                },
+                statements: [
+                  {
+                    id: "statement-id",
+                    speaker: "A",
+                    text: "어제 너가 약속 시간보다 30분 늦었어",
+                    spanStart: 0,
+                    spanEnd: 22,
+                    label: "FACT",
+                    confidence: 0.9958,
+                  },
+                  {
+                    id: "statement-id",
+                    speaker: "A",
+                    text: "나는 서운했어",
+                    spanStart: 23,
+                    spanEnd: 34,
+                    label: "EMOTION",
+                    confidence: 0.9412,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      403: {
+        description: "세션 참여자가 아님",
+      },
+
+      404: {
+        description: "세션 없음",
+      },
+
+      500: {
+        description: "서버 오류",
+      },
+    },
+  },
+},
   },
 };
 
