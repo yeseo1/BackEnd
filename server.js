@@ -15,6 +15,7 @@ import userRoutes from "./routes/userRoutes.js";
 import swaggerSetup from "./swagger/swagger.js";
 import sessionRoutes from "./routes/sessionRoutes.js";
 import inputRoutes from "./routes/inputRoutes.js";
+import analysisRoutes from "./routes/analysisRoutes.js";
 
 dotenv.config();
 
@@ -51,6 +52,7 @@ app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/sessions", sessionRoutes);
 app.use("/sessions", inputRoutes);
+app.use("/sessions", analysisRoutes);
 // Swagger
 swaggerSetup(app);
 
