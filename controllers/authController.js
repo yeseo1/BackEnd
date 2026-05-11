@@ -4,9 +4,54 @@ import { authModel } from "../models/authModel.js";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo";
+const DEFAULT_POST_LOGIN_PATH = "/";
+
+function normalizeNextPath(next) {
+  if (typeof next !== "string") return null;
+
+  const trimmed = next.trim();
+
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(trimmed, "http://localhost");
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return null;
+  }
+}
+
+function encodeOAuthState(nextPath) {
+  return Buffer.from(JSON.stringify({ nextPath }), "utf8").toString("base64url");
+}
+
+function decodeOAuthState(state) {
+  if (typeof state !== "string" || !state.trim()) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(state, "base64url").toString("utf8");
+    const parsed = JSON.parse(decoded);
+    return normalizeNextPath(parsed.nextPath);
+  } catch {
+    return null;
+  }
+}
+
+function buildFrontendRedirectUrl(nextPath = DEFAULT_POST_LOGIN_PATH) {
+  const frontendBase =
+    process.env.FRONTEND_URL ||
+    process.env.API_BASE_URL ||
+    "http://localhost:4000";
+
+  return `${frontendBase.replace(/\/$/, "")}${nextPath}`;
+}
 
 export const authController = {
-  googleLogin(_req, res) {
+  googleLogin(req, res) {
     if (
       !process.env.GOOGLE_CLIENT_ID ||
       !process.env.GOOGLE_CALLBACK_URL
@@ -20,6 +65,9 @@ export const authController = {
       });
     }
 
+    const nextPath =
+      normalizeNextPath(req.query.next) || DEFAULT_POST_LOGIN_PATH;
+
     const params = new URLSearchParams({
       client_id: process.env.GOOGLE_CLIENT_ID,
       redirect_uri: process.env.GOOGLE_CALLBACK_URL,
@@ -27,6 +75,7 @@ export const authController = {
       scope: "openid email profile",
       access_type: "offline",
       prompt: "consent",
+      state: encodeOAuthState(nextPath),
     });
 
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -36,7 +85,7 @@ export const authController = {
 
   async googleCallback(req, res) {
     try {
-      const { code, error } = req.query;
+      const { code, error, state } = req.query;
 
       if (error) {
         return res.status(400).json({
@@ -153,7 +202,10 @@ export const authController = {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      return res.redirect(302, `${process.env.API_BASE_URL || "http://localhost:4000"}/api-docs`);
+      const nextPath =
+        decodeOAuthState(state) || DEFAULT_POST_LOGIN_PATH;
+
+      return res.redirect(302, buildFrontendRedirectUrl(nextPath));
     } catch (error) {
       return res.status(500).json({
         success: false,
