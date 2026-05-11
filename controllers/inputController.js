@@ -251,6 +251,13 @@ export const inputController = {
         data: {
           ...result,
           feinAnalysisStatus,
+          next:
+            feinAnalysisStatus === "DONE"
+              ? {
+                  generateLlmResult: `/llm/sessions/${sessionId}/analysis`,
+                  getLlmResult: `/llm/sessions/${sessionId}/analysis`,
+                }
+              : null,
         },
       });
     } catch (error) {

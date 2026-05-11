@@ -405,7 +405,7 @@ export const swaggerSpec = {
     },
     "/llm/sessions/{sessionId}/analysis": {
       get: {
-        summary: "갈등 분석 결과 생성 (1인/2인 자동 분기)",
+        summary: "저장된 LLM 분석 결과 조회",
         tags: ["LLM"],
         security: [{ bearerAuth: [] }],
         parameters: [
@@ -419,26 +419,160 @@ export const swaggerSpec = {
         ],
         responses: {
           "200": {
-            description: "분석 성공",
+            description: "LLM 분석 결과 조회 성공",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     success: { type: "boolean", example: true },
-                    mode: { type: "string", example: "DUAL" },
                     data: {
-                      type: "string",
-                      description: "갈등 분석 결과 텍스트",
-                      example: "갈등이 가장 컸던 지점 ...",
+                      type: "object",
+                      properties: {
+                        mode: { type: "string", example: "DUAL" },
+                        resultText: {
+                          type: "string",
+                          example: "1. 갈등이 가장 커진 지점 ...",
+                        },
+                        sections: {
+                          type: "object",
+                          description: "결과 화면의 요소별 상세 분석 카드에 바로 표시할 문장",
+                          properties: {
+                            facts: {
+                              type: "object",
+                              example: {
+                                a: "A가 인식한 객관 상황",
+                                b: "B가 인식한 객관 상황",
+                              },
+                            },
+                            interpretations: {
+                              type: "object",
+                              example: {
+                                a: "A의 해석",
+                                b: "B의 해석",
+                              },
+                            },
+                            emotions: {
+                              type: "object",
+                              example: {
+                                a: "A가 느낀 감정",
+                                b: "B가 느낀 감정",
+                              },
+                            },
+                            needs: {
+                              type: "object",
+                              example: {
+                                a: "A가 바라는 점",
+                                b: "B가 바라는 점",
+                              },
+                            },
+                            questions: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["서로에게 어떤 의미였나요?"],
+                            },
+                          },
+                        },
+                        diagramKeywords: {
+                          type: "object",
+                          description: "다이어그램 노드/칩에 넣을 짧은 키워드",
+                          properties: {
+                            coreConflict: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["기대 차이", "소통 부족"],
+                            },
+                            facts: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["약속 시간", "연락 여부"],
+                            },
+                            interpretations: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["무시당함", "상황 차이"],
+                            },
+                            emotions: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["서운함", "당황"],
+                            },
+                            needs: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["사전 연락", "이해"],
+                            },
+                            relationshipShift: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["확인하기", "감정 공유"],
+                            },
+                            questions: {
+                              type: "array",
+                              items: { type: "string" },
+                              example: ["기대", "합의"],
+                            },
+                          },
+                        },
+                      },
                     },
                   },
                 },
               },
             },
           },
-          "404": { description: "세션 없음 또는 데이터 부족" },
-          "500": { description: "LLM 처리 실패" },
+          "404": { description: "저장된 LLM 결과 없음" },
+          "500": { description: "LLM 결과 조회 실패" },
+        },
+      },
+      post: {
+        summary: "모델 분석 결과를 LLM으로 정리해 저장",
+        tags: ["LLM"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "세션 ID",
+          },
+        ],
+        responses: {
+          "201": {
+            description: "LLM 분석 결과 생성 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    data: {
+                      type: "object",
+                      properties: {
+                        mode: { type: "string", example: "DUAL" },
+                        resultText: {
+                          type: "string",
+                          example: "1. 갈등이 가장 커진 지점 ...",
+                        },
+                        sections: {
+                          type: "object",
+                          description: "결과 화면의 요소별 상세 분석 카드에 바로 표시할 문장",
+                        },
+                        diagramKeywords: {
+                          type: "object",
+                          description: "다이어그램 노드/칩에 넣을 짧은 키워드",
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "404": { description: "모델 분석 결과 없음" },
+          "409": { description: "모델 분석 미완료" },
+          "500": { description: "LLM 결과 생성 실패" },
         },
       },
     },

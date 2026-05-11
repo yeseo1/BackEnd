@@ -24,12 +24,24 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const DEV_BEARER_USER_ID =
   process.env.DEV_BEARER_USER_ID || "11111111-1111-1111-1111-111111111111";
+const allowedOrigins = (
+  process.env.FRONTEND_URL || "http://localhost:3000, http://localhost:5173, http://127.0.0.1:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   }),
 );
