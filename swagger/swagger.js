@@ -332,11 +332,12 @@ export const swaggerSpec = {
       },
     },
     
-    "/sessions/{sessionId}/status": {
+    "/sessions/{sessionId}/analysis-status": {
       get: {
-        summary: "세션 상태 조회",
-        description: "현재 세션의 상태, 사용자 역할, 입력 완료 여부를 반환합니다.",
-        tags: ["Sessions"],
+        summary: "분석 상태 조회",
+        description:
+          "실제 요청 URI는 /sessions/{sessionId}/analysis-status 입니다. 현재 세션의 분석 상태와 모드, 관계 유형, 현재 사용자의 참여 역할을 반환합니다.",
+        tags: ["Analysis"],
         security: [{ bearerAuth: [] }],
         parameters: [
           {
@@ -352,7 +353,7 @@ export const swaggerSpec = {
         ],
         responses: {
           "200": {
-            description: "세션 상태 조회 성공",
+            description: "분석 상태 조회 성공",
             content: {
               "application/json": {
                 schema: {
@@ -369,37 +370,193 @@ export const swaggerSpec = {
                           type: "string",
                           example: "b3c1e2d4-1234-5678-9abc-abcdef123456",
                         },
+                        mode: {
+                          type: "string",
+                          example: "DUAL",
+                          description: "세션 모드 (DUAL 또는 SINGLE)",
+                        },
                         status: {
                           type: "string",
-                          example: "ANALYZING",
-                          description: "세션 상태 (WAITING_INPUT / ANALYZING / COMPLETED 등)",
+                          example: "DONE",
+                          description:
+                            "세션 상태 (WAITING_INPUT / READY / ANALYZING / DONE / FAILED / BLOCKED)",
                         },
-                        myRole: {
+                        relationshipType: {
+                          type: "string",
+                          example: "FRIEND",
+                          description:
+                            "관계 유형 (COUPLE / FRIEND / FAMILY / ROOMMATE / TEAM / OTHER)",
+                        },
+                        participantRole: {
                           type: "string",
                           example: "A",
                           description: "현재 사용자의 역할",
                         },
-                        bothSubmitted: {
-                          type: "boolean",
-                          example: true,
-                          description: "양측 입력 완료 여부",
+                        updatedAt: {
+                          type: "string",
+                          format: "date-time",
+                          example: "2026-05-09T15:36:32.389Z",
                         },
                       },
+                    },
+                  },
+                },
+                example: {
+                  success: true,
+                  message: "분석 상태 조회 성공",
+                  data: {
+                    sessionId: "5f2748d9-eb79-4064-9eb7-b8281e17c8ef",
+                    mode: "DUAL",
+                    status: "DONE",
+                    relationshipType: "FRIEND",
+                    participantRole: "A",
+                    updatedAt: "2026-05-09T15:36:32.389Z",
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "인증 실패 또는 로그인 필요" },
+          "403": { description: "세션 참여자가 아님" },
+          "404": {
+            description: "세션을 찾을 수 없음",
+          },
+          "500": {
+            description: "분석 상태 조회 실패",
+          },
+        },
+      },
+    },
+    "/sessions/{sessionId}/results/dual": {
+      get: {
+        summary: "2인 모드 분석 결과 조회",
+        description:
+          "실제 요청 URI는 /sessions/{sessionId}/results/dual 입니다. 2인 모드 세션에서 statement 분류 결과, 대응 문장 정렬 결과, 공통 지점, 핵심 긴장요인을 반환합니다.",
+        tags: ["Analysis"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+            description: "조회할 2인 모드 세션 ID",
+          },
+        ],
+        responses: {
+          "200": {
+            description: "2인 모드 분석 결과 조회 성공",
+            content: {
+              "application/json": {
+                example: {
+                  success: true,
+                  message: "2인 모드 분석 결과 조회 성공",
+                  data: {
+                    session: {
+                      id: "5f2748d9-eb79-4064-9eb7-b8281e17c8ef",
+                      status: "DONE",
+                      relationshipType: "FRIEND",
+                      mode: "DUAL",
+                      createdAt: "2026-05-09T15:36:24.346Z",
+                      updatedAt: "2026-05-09T15:36:32.389Z",
+                    },
+                    statements: {
+                      A: [
+                        {
+                          id: "524c4caa-7b75-41d5-8a30-8f1ab6b4361a",
+                          speaker: "A",
+                          text: "어제 너가 약속 시간보다 30분 늦었어",
+                          spanStart: 0,
+                          spanEnd: 21,
+                          label: "FACT",
+                          confidence: 0.9953,
+                        },
+                      ],
+                      B: [
+                        {
+                          id: "6df6f6ad-a7aa-481d-9e9f-5ecb73c4270e",
+                          speaker: "B",
+                          text: "어제 내가 늦은 건 맞아",
+                          spanStart: 0,
+                          spanEnd: 13,
+                          label: "INTERPRETATION",
+                          confidence: 0.9314,
+                        },
+                      ],
+                    },
+                    alignedPairs: [
+                      {
+                        id: "7d0be37d-0925-4b03-954d-304235561a63",
+                        similarity: 0.7718,
+                        pairType: "NEED_ALIGNMENT",
+                        pairTypeDisplayName: "공통 니즈",
+                        aStatement: {
+                          id: "2da181b8-a5f1-46ef-9802-d1074f5f6b3b",
+                          text: "다음에는 미리 연락해줬으면 좋겠어",
+                          label: "NEED",
+                          confidence: 0.9999,
+                          spanStart: 35,
+                          spanEnd: 53,
+                        },
+                        bStatement: {
+                          id: "f6d2ab53-61c0-4f36-83b2-62bca53eeaea",
+                          text: "다음엔 늦으면 먼저 연락할게",
+                          label: "NEED",
+                          confidence: 0.9960,
+                          spanStart: 31,
+                          spanEnd: 46,
+                        },
+                      },
+                    ],
+                    commonGroundPairs: [
+                      {
+                        id: "7d0be37d-0925-4b03-954d-304235561a63",
+                        similarity: 0.7718,
+                        pairType: "NEED_ALIGNMENT",
+                        pairTypeDisplayName: "공통 니즈",
+                      },
+                    ],
+                    tensions: [
+                      {
+                        id: "34696e42-8db1-4618-8a45-942b3c671fa1",
+                        type: "PERSPECTIVE_GAP",
+                        displayName: "관점 차이",
+                        rationale:
+                          "한쪽은 사실을 말하고 다른 한쪽은 해석을 말해 관점 차이가 핵심 긴장일 수 있습니다.",
+                        createdAt: "2026-05-09T15:36:32.249Z",
+                        evidence: [
+                          {
+                            statementId: "524c4caa-7b75-41d5-8a30-8f1ab6b4361a",
+                            speaker: "A",
+                            text: "어제 너가 약속 시간보다 30분 늦었어",
+                            label: "FACT",
+                            confidence: 0.9953,
+                            spanStart: 0,
+                            spanEnd: 21,
+                          },
+                        ],
+                      },
+                    ],
+                    summary: {
+                      aStatementCount: 3,
+                      bStatementCount: 3,
+                      alignedPairCount: 3,
+                      commonGroundPairCount: 1,
+                      tensionCount: 2,
                     },
                   },
                 },
               },
             },
           },
-          "401": {
-            description: "인증 실패 또는 로그인 필요",
-          },
-          "404": {
-            description: "세션을 찾을 수 없음",
-          },
-          "500": {
-            description: "세션 상태 조회 실패",
-          },
+          "401": { description: "인증 실패 또는 로그인 필요" },
+          "403": { description: "세션 참여자가 아님" },
+          "404": { description: "세션을 찾을 수 없음" },
+          "409": { description: "2인 모드 세션이 아님" },
+          "500": { description: "2인 모드 결과 조회 실패" },
         },
       },
     },
