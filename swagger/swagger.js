@@ -332,6 +332,57 @@ export const swaggerSpec = {
       },
     },
     
+    "/sessions/{sessionId}/results/single": {
+      get: {
+        summary: "1인모드 자기 상황 모델 분석 조회",
+        tags: ["Analysis"],
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: {
+              type: "string",
+              format: "uuid",
+            },
+          },
+        ],
+        responses: {
+          "200": {
+            description: "1인모드 모델 분석 결과 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    data: {
+                      type: "object",
+                      properties: {
+                        session: { type: "object" },
+                        input: { type: "object" },
+                        statements: {
+                          type: "array",
+                          items: { type: "object" },
+                        },
+                        summary: { type: "object" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "인증 실패" },
+          "403": { description: "세션 참여자가 아님" },
+          "404": { description: "세션 없음" },
+          "409": { description: "1인모드 세션이 아님" },
+          "500": { description: "1인모드 분석 결과 조회 실패" },
+        },
+      },
+    },
+
     "/sessions/{sessionId}/status": {
       get: {
         summary: "세션 상태 조회",
@@ -400,6 +451,53 @@ export const swaggerSpec = {
           "500": {
             description: "세션 상태 조회 실패",
           },
+        },
+      },
+    },
+    "/llm/self/results": {
+      get: {
+        summary: "1인모드 자기정리 결과 전체 조회",
+        tags: ["LLM"],
+        security: [{ bearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "1인모드 LLM 결과 목록 조회 성공",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean", example: true },
+                    data: {
+                      type: "object",
+                      properties: {
+                        count: { type: "integer", example: 1 },
+                        results: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              sessionId: { type: "string", format: "uuid" },
+                              mode: { type: "string", example: "SINGLE" },
+                              resultText: { type: "string" },
+                              sections: { type: "object" },
+                              diagramKeywords: { type: "object" },
+                              session: { type: "object" },
+                              input: { type: "object" },
+                              createdAt: { type: "string", format: "date-time" },
+                              updatedAt: { type: "string", format: "date-time" },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "인증 실패" },
+          "500": { description: "LLM 결과 목록 조회 실패" },
         },
       },
     },

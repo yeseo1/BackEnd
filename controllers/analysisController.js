@@ -101,6 +101,61 @@ export const analysisController = {
     }
   },
 
+  async getSingleResults(req, res) {
+    try {
+      const { sessionId } = req.params;
+
+      const result = await analysisModel.getSingleResultsBySessionId({
+        sessionId,
+        userId: req.user.id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Single mode analysis result fetched",
+        data: result,
+      });
+    } catch (error) {
+      if (error.message === "SESSION_NOT_FOUND") {
+        return res.status(404).json({
+          success: false,
+          error: {
+            code: "SESSION_NOT_FOUND",
+            message: "Session not found.",
+          },
+        });
+      }
+
+      if (error.message === "NOT_PARTICIPANT") {
+        return res.status(403).json({
+          success: false,
+          error: {
+            code: "NOT_PARTICIPANT",
+            message: "You are not a participant of this session.",
+          },
+        });
+      }
+
+      if (error.message === "INVALID_SESSION_MODE") {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: "INVALID_SESSION_MODE",
+            message: "Single mode results are available only for SINGLE sessions.",
+          },
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: "SINGLE_RESULTS_FETCH_FAILED",
+          message: "Failed to fetch single mode analysis result.",
+        },
+      });
+    }
+  },
+
   async getAnalysis(req, res) {
     try {
       const { sessionId } = req.params;

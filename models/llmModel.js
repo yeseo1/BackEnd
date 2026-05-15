@@ -45,6 +45,31 @@ function mapLlmResult(row) {
   };
 }
 
+function mapSelfResult(row) {
+  const result = mapLlmResult(row);
+  if (!result) return null;
+
+  return {
+    ...result,
+    session: {
+      id: row.session_id,
+      status: row.session_status,
+      relationshipType: row.relationship_type,
+      mode: row.session_mode,
+      createdAt: row.session_created_at,
+      updatedAt: row.session_updated_at,
+    },
+    input: row.input_id
+      ? {
+          id: row.input_id,
+          speaker: row.input_speaker,
+          rawText: row.raw_text,
+          submittedAt: row.submitted_at,
+        }
+      : null,
+  };
+}
+
 function mapStatement(row) {
   return {
     id: row.id,
@@ -237,6 +262,50 @@ export const llmModel = {
     );
 
     return mapLlmResult(result.rows[0]);
+  },
+
+  async getSelfResults({ userId }) {
+    await ensureLlmResultsTable();
+
+    const result = await db.query(
+      `
+      SELECT
+        lr.id,
+        lr.session_id,
+        lr.mode,
+        lr.result_text,
+        lr.structured_result,
+        lr.source_snapshot,
+        lr.created_at,
+        lr.updated_at,
+        s.status AS session_status,
+        s.relationship_type,
+        s.mode AS session_mode,
+        s.created_at AS session_created_at,
+        s.updated_at AS session_updated_at,
+        it.id AS input_id,
+        it.speaker AS input_speaker,
+        it.raw_text,
+        it.submitted_at
+      FROM llm_results lr
+      JOIN sessions s ON s.id = lr.session_id
+      JOIN session_participants sp ON sp.session_id = s.id
+      LEFT JOIN LATERAL (
+        SELECT id, speaker, raw_text, submitted_at
+        FROM input_texts
+        WHERE session_id = s.id
+        ORDER BY submitted_at ASC
+        LIMIT 1
+      ) it ON TRUE
+      WHERE sp.user_id = $1
+        AND s.mode = 'SINGLE'
+        AND lr.mode = 'SINGLE'
+      ORDER BY lr.updated_at DESC, lr.created_at DESC
+      `,
+      [userId],
+    );
+
+    return result.rows.map(mapSelfResult);
   },
 
   async saveResult({ sessionId, mode, resultText, structuredResult, sourceSnapshot }) {

@@ -338,6 +338,25 @@ function sendControllerError(res, error) {
 }
 
 export const llmController = {
+  async getSelfResults(req, res) {
+    try {
+      const results = await llmModel.getSelfResults({
+        userId: req.user.id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Single mode LLM results fetched",
+        data: {
+          count: results.length,
+          results,
+        },
+      });
+    } catch (error) {
+      return sendControllerError(res, error);
+    }
+  },
+
   async getAnalysis(req, res) {
     try {
       const { sessionId } = req.params;

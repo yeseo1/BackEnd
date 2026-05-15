@@ -50,6 +50,17 @@ function mapStatementRow(row) {
   };
 }
 
+function mapInputRow(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    speaker: row.speaker,
+    rawText: row.raw_text,
+    submittedAt: row.submitted_at,
+  };
+}
+
 async function getSessionAndParticipant({ sessionId, userId }) {
   const sessionResult = await db.query(
     `
@@ -268,6 +279,45 @@ export const analysisModel = {
         alignedPairCount: alignedPairs.length,
         commonGroundPairCount: commonGroundPairs.length,
         tensionCount: tensions.length,
+      },
+    };
+  },
+
+  async getSingleResultsBySessionId({ sessionId, userId }) {
+    const { session } = await getSessionAndParticipant({ sessionId, userId });
+
+    if (session.mode !== "SINGLE") {
+      throw new Error("INVALID_SESSION_MODE");
+    }
+
+    const inputResult = await db.query(
+      `
+      SELECT id, speaker, raw_text, submitted_at
+      FROM input_texts
+      WHERE session_id = $1
+      ORDER BY submitted_at ASC
+      LIMIT 1
+      `,
+      [sessionId],
+    );
+
+    const statements = await getStatementsBySessionId(sessionId);
+    const selfStatements = statements.filter(
+      (statement) => statement.speaker === "SELF" || statement.speaker === "A",
+    );
+
+    const labelCounts = selfStatements.reduce((counts, statement) => {
+      counts[statement.label] = (counts[statement.label] || 0) + 1;
+      return counts;
+    }, {});
+
+    return {
+      session: mapSessionRow(session),
+      input: mapInputRow(inputResult.rows[0]),
+      statements: selfStatements,
+      summary: {
+        statementCount: selfStatements.length,
+        labelCounts,
       },
     };
   },

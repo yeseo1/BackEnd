@@ -121,7 +121,7 @@ export const inputController = {
       let feinAnalysisStatus = "SKIPPED";
 
       try {
-        if (result.mode === "SINGLE" && result.status === "READY") {
+        if (result.mode === "SINGLE" && result.status === "ANALYZING") {
           await inputModel.updateSessionStatus({
             sessionId,
             status: "ANALYZING",
@@ -155,7 +155,7 @@ export const inputController = {
           feinAnalysisStatus = "DONE";
         }
 
-        if (result.mode === "DUAL" && result.status === "READY") {
+        if (result.mode === "DUAL" && result.status === "ANALYZING") {
           await inputModel.updateSessionStatus({
             sessionId,
             status: "ANALYZING",
