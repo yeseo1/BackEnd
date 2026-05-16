@@ -17,7 +17,7 @@ import llmRoutes from "./routes/llmRoutes.js";
 import sessionRoutes from "./routes/sessionRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import swaggerSetup from "./swagger/swagger.js";
-
+import historyRoutes from "./routes/historyRoutes.js";
 dotenv.config();
 
 const app = express();
@@ -67,6 +67,7 @@ app.use("/sessions", inputRoutes);
 app.use("/llm", llmRoutes);
 app.use("/sessions", sessionRoutes);
 app.use("/users", userRoutes);
+app.use("/sessions", historyRoutes);
 
 // Swagger
 swaggerSetup(app);

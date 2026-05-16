@@ -429,7 +429,7 @@ export const swaggerSpec = {
     },
     "/sessions/{sessionId}/results/dual": {
       get: {
-        summary: "2인 모드 분석 결과 조회",
+        summary: "2인 모드 모델 분석 결과 조회",
         description:
           "실제 요청 URI는 /sessions/{sessionId}/results/dual 입니다. 2인 모드 세션에서 statement 분류 결과, 대응 문장 정렬 결과, 공통 지점, 핵심 긴장요인을 반환합니다.",
         tags: ["Analysis"],
@@ -733,6 +733,24 @@ export const swaggerSpec = {
         },
       },
     },
+    "/sessions/history": {
+  get: {
+    summary: "과거 세션 목록 조회",
+    tags: ["History"],
+    security: [{ bearerAuth: [] }],
+    responses: {
+      "200": {
+        description: "히스토리 조회 성공",
+      },
+      "401": {
+        description: "인증 실패 또는 로그인 필요",
+      },
+      "500": {
+        description: "히스토리 조회 실패",
+      },
+    },
+  },
+},
   },
 };
 
