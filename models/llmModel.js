@@ -495,7 +495,7 @@ export const llmModel = {
   },
     async getEvidenceBySessionId({ sessionId, userId }) {
     await ensureLlmResultsTable();
-    await getSessionAndParticipant({ sessionId, userId });
+    const participant = await getSessionAndParticipant({ sessionId, userId });
 
     const result = await db.query(
       `
@@ -520,19 +520,30 @@ export const llmModel = {
     const row = result.rows[0];
     const structuredResult = row.structured_result || {};
     const sourceSnapshot = row.source_snapshot || {};
+    const visibleSpeaker =
+  participant.role === "A"
+    ? "A"
+    : participant.role === "B"
+      ? "B"
+      : "SELF";
 
+const visibleStatements = (sourceSnapshot.statements || []).filter(
+  (statement) => statement.speaker === visibleSpeaker,
+);
     return {
       sessionId: row.session_id,
       mode: row.mode,
       keywordEvidence: await buildKeywordEvidence({
   diagramKeywords: structuredResult.diagramKeywords || {},
-  statements: sourceSnapshot.statements || [],
+  statements: visibleStatements,
 }),
       tensions: (sourceSnapshot.tensions || []).map((tension) => ({
         id: tension.id,
         type: tension.type,
         rationale: tension.rationale,
-        evidence: (tension.evidence || []).map(toEvidenceStatement),
+        evidence: (tension.evidence || [])
+  .filter((statement) => statement.speaker === visibleSpeaker)
+  .map(toEvidenceStatement),
       })),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
