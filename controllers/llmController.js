@@ -7,6 +7,7 @@ const openai = new OpenAI({
 });
 
 const ANALYSIS_MODEL = process.env.OPENAI_ANALYSIS_MODEL || "gpt-5.1";
+const MIN_RESULT_SENTENCE_COUNT = 3;
 
 const EMPTY_SECTIONS = {
   facts: { a: "", b: "", self: "" },
@@ -81,9 +82,7 @@ function buildJsonContract(mode) {
       : `{ "a": "A 입장 문장", "b": "B 입장 문장" }`;
 
   return `
-  if (mode === "SINGLE") {
-    return 
-반드시 아래 JSON 객체 하나만 반환하세요. 마크다운 코드블록은 쓰지 마세요.
+반드시 아래 JSON 객체 하나만 반환하세요. 마크다운 코드블록이나 JSON 밖 설명은 쓰지 마세요.
 {
   "resultText": "결과 화면 상단이나 상세 보기에서 그대로 보여줄 전체 분석문",
   "sections": {
@@ -104,11 +103,24 @@ function buildJsonContract(mode) {
   }
 }
 
+resultText 작성 규칙:
+- 최소 3문장, 가능하면 4-5문장으로 작성하세요.
+- 각 문장은 사용자가 입력한 원문 근거를 바탕으로 구체적인 관찰, 해석, 조언을 하나씩 담으세요.
+- "갈등이 있습니다", "대화가 필요합니다"처럼 누구에게나 붙일 수 있는 겉핥기 문장은 피하세요.
+- 친절한 챗봇 말투보다 상담사가 상황을 정리하고 다음 행동을 조언하는 차분한 문체로 쓰세요.
+- 한쪽을 비난하거나 진단하듯 단정하지 말고, "상대는 틀렸다"보다 "서로 다르게 받아들인 지점"을 짚으세요.
+- 마지막 문장은 바로 시도할 수 있는 대화 방향이나 확인 질문을 제안하세요.
+
+sections 작성 규칙:
+- facts, interpretations, emotions, needs의 각 문장은 최소 2문장으로 작성하세요.
+- 원문 표현을 직접 반영해 "무엇이 드러났는지"와 "그래서 어떤 조정이 필요한지"를 함께 설명하세요.
+- 빈약한 한 줄 요약, 키워드 나열, AI가 쓴 듯한 추상 문구는 피하세요.
+
 diagramKeywords 규칙:
-- 각 배열은 2-5개
-- 각 키워드는 2-12자 정도의 짧은 한국어 명사구
-- 다이어그램 노드/칩에 바로 들어가도 어색하지 않게 작성
-- 원문에 없는 사실을 만들지 말 것
+- 각 배열은 2-5개입니다.
+- 각 키워드는 2-12자 정도의 짧은 한국어 명사구입니다.
+- 다이어그램 노드/칩에 바로 들어가도 어색하지 않게 작성하세요.
+- 원문에 없는 사실을 만들지 마세요.
 `;
 }
 
@@ -116,6 +128,7 @@ function buildDualPrompt(context) {
   return `
 아래는 사용자가 입력한 2인 갈등 원문을 모델서버가 FEIN 기준으로 분류하고 정렬한 결과입니다.
 이 데이터를 바탕으로 결과 화면 카드와 다이어그램에 바로 사용할 최종 분석 데이터를 만드세요.
+분석은 짧은 요약이 아니라, 상담사가 양쪽 이야기를 듣고 핵심 패턴과 다음 대화 방향을 짚어주는 글이어야 합니다.
 
 [A 발화]
 ${formatStatements(context.statementsBySpeaker.A)}
@@ -123,18 +136,20 @@ ${formatStatements(context.statementsBySpeaker.A)}
 [B 발화]
 ${formatStatements(context.statementsBySpeaker.B)}
 
-[공통점/차이 정렬]
+[공통점과 차이 정렬]
 ${formatAlignedPairs(context.alignedPairs)}
 
 [갈등 긴장 지점]
 ${formatTensions(context.tensions)}
 
 작성 기준:
-- 판단하거나 편들지 말 것
-- 사실, 해석, 감정, 욕구를 분리할 것
-- sections는 스크린샷의 "요소별 상세 분석" 카드에 바로 들어갈 문장으로 작성
-- resultText는 전체 결과를 읽을 수 있는 요약형 분석문으로 작성
-- diagramKeywords는 다이어그램에 넣을 짧은 키워드만 추출
+- 판단하거나 편을 들지 마세요.
+- 사실, 해석, 감정, 욕구를 분리해 읽히게 하세요.
+- A와 B가 같은 사건을 어떻게 다르게 받아들였는지 구체적으로 짚으세요.
+- 감정 뒤에 있는 욕구와 기대를 연결해서 설명하세요.
+- resultText는 전체 결과를 읽을 수 있는 상담형 분석문으로 작성하세요.
+- sections는 화면의 "요소별 상세 분석" 카드에 바로 들어갈 문장으로 작성하세요.
+- diagramKeywords는 다이어그램에 넣을 짧은 키워드만 추출하세요.
 
 ${buildJsonContract("DUAL")}
 `;
@@ -149,16 +164,19 @@ function buildSinglePrompt(context) {
   return `
 아래는 사용자가 혼자 입력한 갈등 원문을 모델서버가 FEIN 기준으로 분류한 결과입니다.
 이 데이터를 바탕으로 1인 모드 결과 화면 카드와 다이어그램에 바로 사용할 최종 분석 데이터를 만드세요.
+분석은 짧은 요약이 아니라, 상담사가 사용자의 말을 정리해주고 다음 행동을 조언하는 글이어야 합니다.
 
 [사용자 발화]
 ${formatStatements(selfStatements)}
 
 작성 기준:
-- 자기 비난이나 상대 비난으로 몰지 말 것
-- 사실, 해석, 감정, 욕구를 분리할 것
-- sections는 스크린샷의 "요소별 상세 분석" 카드에 바로 들어갈 문장으로 작성
-- resultText는 전체 결과를 읽을 수 있는 요약형 분석문으로 작성
-- diagramKeywords는 다이어그램에 넣을 짧은 키워드만 추출
+- 자기 비난이나 상대 비난으로 몰지 마세요.
+- 사실, 해석, 감정, 욕구를 분리해 읽히게 하세요.
+- 사용자가 실제로 말한 표현을 근거로 어떤 패턴이 보이는지 구체적으로 설명하세요.
+- 감정 뒤에 있는 욕구와 기대를 연결해서 설명하세요.
+- resultText는 전체 결과를 읽을 수 있는 상담형 분석문으로 작성하세요.
+- sections는 화면의 "요소별 상세 분석" 카드에 바로 들어갈 문장으로 작성하세요.
+- diagramKeywords는 다이어그램에 넣을 짧은 키워드만 추출하세요.
 
 ${buildJsonContract("SINGLE")}
 `;
@@ -232,7 +250,21 @@ function normalizeStructuredResult(parsed) {
   };
 }
 
-async function generateStructuredAnalysis(prompt) {
+function countSentences(text) {
+  return text
+    .split(/[.!?。！？\n]+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean).length;
+}
+
+function hasDetailedResultText(resultText) {
+  return (
+    resultText.length >= 120 &&
+    countSentences(resultText) >= MIN_RESULT_SENTENCE_COUNT
+  );
+}
+
+async function requestStructuredAnalysis(prompt) {
   const response = await openai.chat.completions.create({
     model: ANALYSIS_MODEL,
     response_format: { type: "json_object" },
@@ -240,7 +272,7 @@ async function generateStructuredAnalysis(prompt) {
       {
         role: "system",
         content:
-          "너는 갈등 상황을 사실, 해석, 감정, 욕구로 구조화하고 결과 화면 및 다이어그램용 키워드를 추출하는 한국어 분석 도우미다.",
+          "너는 갈등 상황을 사실, 해석, 감정, 욕구로 구조화하는 한국어 상담형 분석가다. 결과는 짧은 AI식 요약이 아니라, 사용자가 자기 상황을 다시 볼 수 있도록 근거를 짚고 다음 대화 방향을 제안하는 차분한 분석문으로 작성한다.",
       },
       {
         role: "user",
@@ -251,10 +283,28 @@ async function generateStructuredAnalysis(prompt) {
 
   const content = response.choices[0]?.message?.content || "";
   const parsed = JSON.parse(extractJsonObject(content));
-  const normalized = normalizeStructuredResult(parsed);
+
+  return normalizeStructuredResult(parsed);
+}
+
+async function generateStructuredAnalysis(prompt) {
+  let normalized = await requestStructuredAnalysis(prompt);
 
   if (!normalized.resultText) {
     throw new Error("EMPTY_LLM_RESULT");
+  }
+
+  if (!hasDetailedResultText(normalized.resultText)) {
+    normalized = await requestStructuredAnalysis(`
+${prompt}
+
+이전 결과가 너무 짧거나 피상적이었습니다. resultText는 반드시 3문장 이상, 120자 이상으로 다시 작성하세요.
+각 문장에는 원문 근거, FEIN 관점의 해석, 상담사가 제안하는 다음 대화 방향이 드러나야 합니다.
+`);
+  }
+
+  if (!normalized.resultText || !hasDetailedResultText(normalized.resultText)) {
+    throw new Error("LLM_RESULT_TOO_SHORT");
   }
 
   return normalized;
@@ -391,7 +441,7 @@ export const llmController = {
     }
   },
 
-    async generateAnalysis(req, res) {
+  async generateAnalysis(req, res) {
     try {
       const { sessionId } = req.params;
       const context = await llmModel.getSessionContext({
