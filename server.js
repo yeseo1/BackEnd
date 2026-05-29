@@ -32,6 +32,7 @@ const allowedOrigins = (
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
+app.set("trust proxy", 1);
 app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
 app.use(express.urlencoded({ limit: REQUEST_BODY_LIMIT, extended: true }));
 app.use(
