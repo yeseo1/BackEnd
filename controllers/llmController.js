@@ -6,7 +6,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const ANALYSIS_MODEL = process.env.OPENAI_ANALYSIS_MODEL || "gpt-5.1";
+const ANALYSIS_MODEL = process.env.OPENAI_ANALYSIS_MODEL;
 const MIN_RESULT_SENTENCE_COUNT = 3;
 
 const EMPTY_SECTIONS = {

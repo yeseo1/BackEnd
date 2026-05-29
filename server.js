@@ -22,6 +22,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const REQUEST_BODY_LIMIT = process.env.REQUEST_BODY_LIMIT || "50mb";
 const DEV_BEARER_USER_ID =
   process.env.DEV_BEARER_USER_ID || "11111111-1111-1111-1111-111111111111";
 const allowedOrigins = (
@@ -31,8 +32,8 @@ const allowedOrigins = (
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
+app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+app.use(express.urlencoded({ limit: REQUEST_BODY_LIMIT, extended: true }));
 app.use(
   cors({
     origin(origin, callback) {
@@ -82,12 +83,9 @@ app.get("/health", (_req, res) => {
   });
 });
 
-
-
 app.get("/", (_req, res) => {
   res.send("티격태격 백엔드 API 서버입니다. Swagger는 /api-docs 에 있습니다.");
 });
-
 
 app.use((_req, res) => {
   res.status(404).json({

@@ -1,6 +1,7 @@
-import OpenAI from "openai";
+﻿import OpenAI from "openai";
 
 import { inputModel } from "../models/inputModel.js";
+import { parseKakaoCaptureImages } from "../utils/kakaoCaptureParser.js";
 import { splitIntoStatements } from "../utils/statementSplitter.js";
 import { selectKeyTensions } from "../utils/tensionSelector.js";
 
@@ -11,8 +12,13 @@ const client = new OpenAI({
 const MODERATION_MODEL =
   process.env.OPENAI_MODERATION_MODEL || "omni-moderation-latest";
 
+
 const FEIN_MODEL_BASE_URL =
   process.env.FEIN_MODEL_BASE_URL || "http://localhost:8000";
+
+const MAX_KAKAO_CAPTURE_IMAGES = Number(
+  process.env.MAX_KAKAO_CAPTURE_IMAGES || 6,
+);
 
 async function moderateText(input) {
   const response = await client.moderations.create({
@@ -79,6 +85,77 @@ function toStatements(results, speaker, rawText) {
   }));
 }
 
+function filesToImageInputs(files = []) {
+  return files.map((file) => ({
+    imageBase64: file.buffer.toString("base64"),
+    mimeType: file.mimetype,
+  }));
+}
+
+async function runDualFeinAnalysis({ sessionId, aRawText, bRawText }) {
+  await inputModel.updateSessionStatus({
+    sessionId,
+    status: "ANALYZING",
+  });
+
+  const aStatementsInput = splitIntoStatements(aRawText);
+  const bStatementsInput = splitIntoStatements(bRawText);
+
+  const analyzeResponse = await postJson(
+    `${FEIN_MODEL_BASE_URL}/internal/fein/analyze-dual`,
+    {
+      a_statements: aStatementsInput.length ? aStatementsInput : [aRawText],
+      b_statements: bStatementsInput.length ? bStatementsInput : [bRawText],
+    },
+  );
+
+  const aStatements = toStatements(
+    analyzeResponse.data?.data?.a_results,
+    "A",
+    aRawText,
+  );
+
+  const bStatements = toStatements(
+    analyzeResponse.data?.data?.b_results,
+    "B",
+    bRawText,
+  );
+
+  const savedStatements = await inputModel.saveStatements({
+    sessionId,
+    statements: [...aStatements, ...bStatements],
+  });
+
+  const savedAStatements = savedStatements.filter(
+    (statement) => statement.speaker === "A",
+  );
+  const savedBStatements = savedStatements.filter(
+    (statement) => statement.speaker === "B",
+  );
+
+  const selectedTensions = selectKeyTensions(
+    analyzeResponse.data?.data?.tension_candidates,
+  );
+
+  const savedArtifacts = await inputModel.saveDualAnalysisArtifacts({
+    sessionId,
+    aStatements: savedAStatements,
+    bStatements: savedBStatements,
+    alignedPairs: analyzeResponse.data?.data?.aligned_pairs || [],
+    tensions: selectedTensions,
+  });
+
+  await inputModel.updateSessionStatus({
+    sessionId,
+    status: "DONE",
+  });
+
+  return {
+    alignedPairCount: savedArtifacts.alignmentPairs.length,
+    tensionCount: savedArtifacts.tensions.length,
+  };
+}
+
 export const inputController = {
   async submitInput(req, res) {
     try {
@@ -90,7 +167,7 @@ export const inputController = {
           success: false,
           error: {
             code: "VALIDATION_ERROR",
-            message: "rawText는 필수입니다.",
+            message: "rawText???꾩닔?낅땲??",
           },
         });
       }
@@ -106,7 +183,7 @@ export const inputController = {
           success: false,
           error: {
             code: "INPUT_BLOCKED",
-            message: "위험 신호가 감지되어 입력이 차단되었습니다.",
+            message: "?꾪뿕 ?좏샇媛 媛먯??섏뼱 ?낅젰??李⑤떒?섏뿀?듬땲??",
             details: moderationResult,
           },
         });
@@ -250,7 +327,7 @@ export const inputController = {
 
       return res.status(201).json({
         success: true,
-        message: "입력이 저장되었습니다.",
+        message: "?낅젰????λ릺?덉뒿?덈떎.",
         data: {
           ...result,
           feinAnalysisStatus,
@@ -267,21 +344,21 @@ export const inputController = {
       if (error.message === "SESSION_NOT_FOUND") {
         return res.status(404).json({
           success: false,
-          error: { code: "SESSION_NOT_FOUND", message: "세션을 찾을 수 없습니다." },
+          error: { code: "SESSION_NOT_FOUND", message: "?몄뀡??李얠쓣 ???놁뒿?덈떎." },
         });
       }
 
       if (error.message === "NOT_PARTICIPANT") {
         return res.status(403).json({
           success: false,
-          error: { code: "NOT_PARTICIPANT", message: "해당 세션 참여자가 아닙니다." },
+          error: { code: "NOT_PARTICIPANT", message: "?대떦 ?몄뀡 李몄뿬?먭? ?꾨떃?덈떎." },
         });
       }
 
       if (error.message === "INPUT_ALREADY_SUBMITTED") {
         return res.status(409).json({
           success: false,
-          error: { code: "INPUT_ALREADY_SUBMITTED", message: "이미 입력을 제출했습니다." },
+          error: { code: "INPUT_ALREADY_SUBMITTED", message: "?대? ?낅젰???쒖텧?덉뒿?덈떎." },
         });
       }
 
@@ -289,7 +366,191 @@ export const inputController = {
         success: false,
         error: {
           code: "INPUT_SUBMIT_FAILED",
-          message: "입력 저장 중 오류가 발생했습니다.",
+          message: "?낅젰 ???以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.",
+        },
+      });
+    }
+  },
+
+  async submitKakaoCaptures(req, res) {
+    try {
+      const { sessionId } = req.params;
+      const uploadedImages = filesToImageInputs(req.files);
+      const images = uploadedImages.length
+        ? uploadedImages
+        : Array.isArray(req.body?.images)
+          ? req.body.images
+          : null;
+      const imageCount =
+        images?.length || (req.body?.imageBase64 || req.body?.imageDataUrl ? 1 : 0);
+
+      if (!imageCount) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "images, imageBase64, or imageDataUrl is required.",
+          },
+        });
+      }
+
+      if (imageCount > MAX_KAKAO_CAPTURE_IMAGES) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "TOO_MANY_IMAGES",
+            message: `Up to ${MAX_KAKAO_CAPTURE_IMAGES} images can be uploaded at once.`,
+          },
+        });
+      }
+
+      const parsed = await parseKakaoCaptureImages({
+        images,
+        imageBase64: req.body?.imageBase64,
+        imageDataUrl: req.body?.imageDataUrl,
+        mimeType: req.body?.mimeType,
+        client,
+      });
+
+      if (!parsed.messages.length) {
+        return res.status(422).json({
+          success: false,
+          error: {
+            code: "KAKAO_CAPTURE_EMPTY",
+            message: "No chat bubbles were extracted from the images.",
+            details: parsed.notes,
+          },
+        });
+      }
+
+      if (!parsed.summary.hasBothSpeakers) {
+        return res.status(422).json({
+          success: false,
+          error: {
+            code: "KAKAO_CAPTURE_SPEAKER_INCOMPLETE",
+            message: "Both A and B speaker messages are required.",
+            details: {
+              ...parsed.summary,
+              notes: parsed.notes,
+            },
+          },
+        });
+      }
+
+      const moderationResult = await moderateText(parsed.combinedText);
+
+      if (moderationResult.flagged) {
+        await inputModel.blockSession({ sessionId });
+
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "INPUT_BLOCKED",
+            message: "Input was blocked by moderation.",
+            details: moderationResult,
+          },
+        });
+      }
+
+      const result = await inputModel.submitDualCaptureInput({
+        sessionId,
+        userId: req.user.id,
+        aRawText: parsed.rawTexts.A,
+        bRawText: parsed.rawTexts.B,
+      });
+
+      let feinAnalysisStatus = "SKIPPED";
+
+      try {
+        result.analysisArtifacts = await runDualFeinAnalysis({
+          sessionId,
+          aRawText: parsed.rawTexts.A,
+          bRawText: parsed.rawTexts.B,
+        });
+        feinAnalysisStatus = "DONE";
+      } catch (feinError) {
+        await inputModel.updateSessionStatus({
+          sessionId,
+          status: "FAILED",
+        });
+        feinAnalysisStatus = "FAILED";
+        console.error(
+          "FEIN model analysis failed",
+          feinError?.response?.data || feinError,
+        );
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: "KakaoTalk capture input saved.",
+        data: {
+          ...result,
+          captureParsing: {
+            model: parsed.model,
+            imageCount: parsed.imageCount,
+            messages: parsed.messages,
+            notes: parsed.notes,
+            summary: parsed.summary,
+          },
+          feinAnalysisStatus,
+          next:
+            feinAnalysisStatus === "DONE"
+              ? {
+                  generateLlmResult: `/llm/sessions/${sessionId}/analysis`,
+                  getLlmResult: `/llm/sessions/${sessionId}/analysis`,
+                }
+              : null,
+        },
+      });
+    } catch (error) {
+      if (error.message === "SESSION_NOT_FOUND") {
+        return res.status(404).json({
+          success: false,
+          error: { code: "SESSION_NOT_FOUND", message: "Session not found." },
+        });
+      }
+
+      if (error.message === "NOT_PARTICIPANT") {
+        return res.status(403).json({
+          success: false,
+          error: { code: "NOT_PARTICIPANT", message: "Not a session participant." },
+        });
+      }
+
+      if (error.message === "DUAL_SESSION_REQUIRED") {
+        return res.status(409).json({
+          success: false,
+          error: {
+            code: "DUAL_SESSION_REQUIRED",
+            message: "KakaoTalk capture input requires a DUAL mode session.",
+          },
+        });
+      }
+
+      if (error.message === "INPUT_ALREADY_SUBMITTED") {
+        return res.status(409).json({
+          success: false,
+          error: { code: "INPUT_ALREADY_SUBMITTED", message: "Input already submitted." },
+        });
+      }
+
+      if (error.code === "KAKAO_CAPTURE_IMAGE_REQUIRED") {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: error.code,
+            message: "At least one valid image is required.",
+          },
+        });
+      }
+
+      console.error("Kakao capture input failed", error);
+
+      return res.status(500).json({
+        success: false,
+        error: {
+          code: "KAKAO_CAPTURE_SUBMIT_FAILED",
+          message: "Failed to process KakaoTalk capture input.",
         },
       });
     }

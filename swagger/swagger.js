@@ -3,12 +3,28 @@ import swaggerUi from "swagger-ui-express";
 
 dotenv.config();
 
+const jsonResponse = {
+  "application/json": {
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean" },
+        message: { type: "string" },
+        data: { type: "object" },
+        error: { type: "object" },
+      },
+    },
+  },
+};
+
+const bearerSecurity = [{ bearerAuth: [] }];
+
 export const swaggerSpec = {
   openapi: "3.0.0",
   info: {
     title: "TigyeokTaegyeok API",
     version: "0.1.0",
-    description: "Backend API skeleton for the capstone project",
+    description: "AI 기반 갈등 구조화 서비스 백엔드 API",
   },
   components: {
     securitySchemes: {
@@ -27,24 +43,32 @@ export const swaggerSpec = {
   paths: {
     "/health": {
       get: {
-        summary: "Health check",
+        summary: "서버 상태 확인",
+        tags: ["System"],
         responses: {
-          "200": {
-            description: "Server health response",
-          },
+          "200": { description: "서버 정상 응답", content: jsonResponse },
         },
       },
     },
     "/auth/google/login": {
       get: {
-        summary: "Google OAuth login entrypoint",
+        summary: "Google OAuth 로그인 시작",
+        tags: ["Auth"],
         responses: {
-          "302": {
-            description: "Google OAuth 인증 페이지로 리다이렉트",
-          },
-          "500": {
-            description: "Google OAuth 설정 누락",
-          },
+          "302": { description: "Google OAuth 페이지로 이동" },
+          "500": { description: "Google OAuth 설정 오류" },
+        },
+      },
+    },
+    "/auth/google/callback": {
+      get: {
+        summary: "Google OAuth 콜백",
+        tags: ["Auth"],
+        responses: {
+          "302": { description: "로그인 성공 후 리다이렉트" },
+          "400": { description: "Google OAuth 요청 오류" },
+          "500": { description: "콜백 처리 오류" },
+          "502": { description: "Google API 연동 오류" },
         },
       },
     },
@@ -52,97 +76,31 @@ export const swaggerSpec = {
       post: {
         summary: "로그아웃",
         tags: ["Auth"],
-        security: [{ bearerAuth: [] }],
+        security: bearerSecurity,
         responses: {
-          "200": {
-            description: "로그아웃 성공",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean", example: true },
-                    message: { type: "string", example: "로그아웃 성공" }
-                  }
-                }
-              }
-            }
-          },
-          "401": { description: "인증 실패" }
-        }
-      }
-    },
-    "/auth/google/callback": {
-      get: {
-        summary: "Google OAuth callback",
-        parameters: [
-          {
-            name: "code",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string",
-            },
-          },
-          {
-            name: "error",
-            in: "query",
-            required: false,
-            schema: {
-              type: "string",
-            },
-          },
-        ],
-        responses: {
-          "302": {
-            description: "로그인 성공 후 Swagger로 리다이렉트",
-          },
-          "400": {
-            description: "Google OAuth 요청 오류",
-          },
-          "500": {
-            description: "Callback 처리 오류",
-          },
-          "502": {
-            description: "Google API 연동 오류",
-          },
+          "200": { description: "로그아웃 성공", content: jsonResponse },
+          "401": { description: "인증 실패" },
         },
       },
     },
     "/users/me": {
       get: {
-        summary: "로그인 사용자 프로필 조회",
+        summary: "내 프로필 조회",
         tags: ["Users"],
-        security: [
-          {
-            bearerAuth: [],
-          },
-        ],
+        security: bearerSecurity,
         responses: {
-          "200": {
-            description: "프로필 조회 성공",
-          },
-          "401": {
-            description: "인증 실패 또는 로그인 필요",
-          },
-          "404": {
-            description: "사용자 없음",
-          },
-          "500": {
-            description: "프로필 조회 실패",
-          },
+          "200": { description: "프로필 조회 성공", content: jsonResponse },
+          "401": { description: "인증 실패" },
+          "404": { description: "사용자를 찾을 수 없음" },
+          "500": { description: "프로필 조회 실패" },
         },
       },
     },
     "/users/me/profile": {
       patch: {
-        summary: "로그인 사용자 프로필 저장",
+        summary: "내 프로필 수정",
         tags: ["Users"],
-        security: [
-          {
-            bearerAuth: [],
-          },
-        ],
+        security: bearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -163,38 +121,22 @@ export const swaggerSpec = {
                   },
                 },
               },
-              examples: {
-                saveProfile: {
-                  value: {
-                    gender: "M",
-                    age: 24,
-                  },
-                },
-              },
             },
           },
         },
         responses: {
-          "200": {
-            description: "프로필 저장 성공",
-          },
-          "400": {
-            description: "입력 검증 실패",
-          },
-          "401": {
-            description: "인증 실패 또는 로그인 필요",
-          },
-          "404": {
-            description: "사용자 없음",
-          },
+          "200": { description: "프로필 수정 성공", content: jsonResponse },
+          "400": { description: "입력 검증 실패" },
+          "401": { description: "인증 실패" },
+          "404": { description: "사용자를 찾을 수 없음" },
         },
       },
     },
-        "/sessions": {
+    "/sessions": {
       post: {
         summary: "세션 생성",
         tags: ["Sessions"],
-        security: [{ bearerAuth: [] }],
+        security: bearerSecurity,
         requestBody: {
           required: true,
           content: {
@@ -207,33 +149,17 @@ export const swaggerSpec = {
                     type: "string",
                     enum: ["COUPLE", "FRIEND", "FAMILY", "ROOMMATE", "TEAM", "OTHER"],
                   },
-                  mode: {
-                    type: "string",
-                    enum: ["DUAL", "SINGLE"],
-                    default: "DUAL",
-                 },
-                roomPassword: {
-                  type: "string",
-                  example: "1234"
-                }
-              },
-            },
-              examples: {
-                createSession: {
-                  value: {
-                    relationshipType: "FRIEND",
-                    mode: "DUAL",
-                    roomPassword: "1234",
-                  },
+                  mode: { type: "string", enum: ["DUAL", "SINGLE"], default: "DUAL" },
+                  roomPassword: { type: "string", example: "1234" },
                 },
               },
             },
           },
         },
         responses: {
-          "201": { description: "세션 생성 성공" },
+          "201": { description: "세션 생성 성공", content: jsonResponse },
           "400": { description: "입력 검증 실패" },
-          "401": { description: "인증 실패 또는 로그인 필요" },
+          "401": { description: "인증 실패" },
           "500": { description: "세션 생성 실패" },
         },
       },
@@ -242,16 +168,13 @@ export const swaggerSpec = {
       post: {
         summary: "세션 참여",
         tags: ["Sessions"],
-        security: [{ bearerAuth: [] }],
+        security: bearerSecurity,
         parameters: [
           {
             name: "sessionId",
             in: "path",
             required: true,
-            schema: {
-              type: "string",
-              format: "uuid",
-            },
+            schema: { type: "string", format: "uuid" },
           },
         ],
         requestBody: {
@@ -262,38 +185,32 @@ export const swaggerSpec = {
                 type: "object",
                 required: ["roomPassword"],
                 properties: {
-                  roomPassword: {
-                    type: "string",
-                    example: "1234"
-                  }
-                }
-              }
-            }
-          }
+                  roomPassword: { type: "string", example: "1234" },
+                },
+              },
+            },
+          },
         },
         responses: {
-          "200": { description: "세션 참여 성공" },
-          "401": { description: "인증 실패 또는 로그인 필요" },
-          "404": { description: "세션 없음" },
-          "409": { description: "이미 참여했거나 정원 초과" },
+          "200": { description: "세션 참여 성공", content: jsonResponse },
+          "401": { description: "인증 실패" },
+          "404": { description: "세션을 찾을 수 없음" },
+          "409": { description: "이미 참여했거나 세션 정원 초과" },
           "500": { description: "세션 참여 실패" },
         },
       },
     },
     "/sessions/{sessionId}/inputs": {
       post: {
-        summary: "세션 원문 입력 제출",
+        summary: "텍스트 입력 제출",
         tags: ["Inputs"],
-        security: [{ bearerAuth: [] }],
+        security: bearerSecurity,
         parameters: [
           {
             name: "sessionId",
             in: "path",
             required: true,
-            schema: {
-              type: "string",
-              format: "uuid",
-            },
+            schema: { type: "string", format: "uuid" },
           },
         ],
         requestBody: {
@@ -304,255 +221,118 @@ export const swaggerSpec = {
                 type: "object",
                 required: ["rawText"],
                 properties: {
-                  rawText: {
-                    type: "string",
-                    example: "오늘 있었던 갈등 상황을 작성합니다.",
-                  },
-                },
-              },
-              examples: {
-                submitInput: {
-                  value: {
-                    rawText: "오늘 있었던 갈등 상황을 작성합니다.",
-                  },
+                  rawText: { type: "string", example: "오늘 있었던 갈등 상황을 작성합니다." },
                 },
               },
             },
           },
         },
         responses: {
-          "201": { description: "입력 저장 성공" },
-          "400": { description: "입력 검증 실패" },
-          "401": { description: "인증 실패 또는 로그인 필요" },
+          "201": { description: "입력 저장 및 분석 처리 성공", content: jsonResponse },
+          "400": { description: "입력 검증 실패 또는 moderation 차단" },
+          "401": { description: "인증 실패" },
           "403": { description: "세션 참여자가 아님" },
-          "404": { description: "세션 없음" },
-          "409": { description: "이미 입력 제출됨" },
+          "404": { description: "세션을 찾을 수 없음" },
+          "409": { description: "이미 입력이 제출됨" },
           "500": { description: "입력 저장 실패" },
         },
       },
     },
-    
-    "/sessions/{sessionId}/analysis-status": {
-      get: {
-        summary: "분석 상태 조회",
+    "/sessions/{sessionId}/inputs/kakao-captures": {
+      post: {
+        summary: "카카오톡 캡처 이미지 입력 제출",
         description:
-          "실제 요청 URI는 /sessions/{sessionId}/analysis-status 입니다. 현재 세션의 분석 상태와 모드, 관계 유형, 현재 사용자의 참여 역할을 반환합니다.",
-        tags: ["Analysis"],
-        security: [{ bearerAuth: [] }],
+          "Swagger에서 이미지 파일을 직접 선택해 업로드할 수 있습니다. 여러 장은 선택 순서대로 gpt-5.1이 읽고 하나의 대화로 합칩니다.",
+        tags: ["Inputs"],
+        security: bearerSecurity,
         parameters: [
           {
             name: "sessionId",
             in: "path",
             required: true,
-            schema: {
-              type: "string",
-              format: "uuid",
-            },
-            description: "조회할 세션 ID",
+            schema: { type: "string", format: "uuid" },
           },
         ],
-        responses: {
-          "200": {
-            description: "분석 상태 조회 성공",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: {
-                      type: "boolean",
-                      example: true,
-                    },
-                    data: {
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["images"],
+                properties: {
+                  images: {
+                    type: "array",
+                    description: "업로드할 카카오톡 캡처 이미지 파일들",
+                    items: { type: "string", format: "binary" },
+                  },
+                },
+              },
+            },
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  images: {
+                    type: "array",
+                    description: "base64 방식으로 보낼 때 사용하는 이미지 배열",
+                    items: {
                       type: "object",
                       properties: {
-                        sessionId: {
+                        imageDataUrl: { type: "string" },
+                        imageBase64: { type: "string" },
+                        mimeType: {
                           type: "string",
-                          example: "b3c1e2d4-1234-5678-9abc-abcdef123456",
-                        },
-                        mode: {
-                          type: "string",
-                          example: "DUAL",
-                          description: "세션 모드 (DUAL 또는 SINGLE)",
-                        },
-                        status: {
-                          type: "string",
-                          example: "DONE",
-                          description:
-                            "세션 상태 (WAITING_INPUT / READY / ANALYZING / DONE / FAILED / BLOCKED)",
-                        },
-                        relationshipType: {
-                          type: "string",
-                          example: "FRIEND",
-                          description:
-                            "관계 유형 (COUPLE / FRIEND / FAMILY / ROOMMATE / TEAM / OTHER)",
-                        },
-                        participantRole: {
-                          type: "string",
-                          example: "A",
-                          description: "현재 사용자의 역할",
-                        },
-                        updatedAt: {
-                          type: "string",
-                          format: "date-time",
-                          example: "2026-05-09T15:36:32.389Z",
+                          enum: ["image/png", "image/jpeg", "image/webp"],
                         },
                       },
                     },
                   },
-                },
-                example: {
-                  success: true,
-                  message: "분석 상태 조회 성공",
-                  data: {
-                    sessionId: "5f2748d9-eb79-4064-9eb7-b8281e17c8ef",
-                    mode: "DUAL",
-                    status: "DONE",
-                    relationshipType: "FRIEND",
-                    participantRole: "A",
-                    updatedAt: "2026-05-09T15:36:32.389Z",
+                  imageDataUrl: { type: "string" },
+                  imageBase64: { type: "string" },
+                  mimeType: {
+                    type: "string",
+                    enum: ["image/png", "image/jpeg", "image/webp"],
                   },
                 },
               },
             },
           },
-          "401": { description: "인증 실패 또는 로그인 필요" },
+        },
+        responses: {
+          "201": { description: "캡처 입력 저장 및 FEIN 분석 실행 성공", content: jsonResponse },
+          "400": { description: "이미지 입력 오류 또는 moderation 차단" },
+          "401": { description: "인증 실패" },
           "403": { description: "세션 참여자가 아님" },
-          "404": {
-            description: "세션을 찾을 수 없음",
-          },
-          "500": {
-            description: "분석 상태 조회 실패",
-          },
+          "404": { description: "세션을 찾을 수 없음" },
+          "409": { description: "DUAL 세션이 아니거나 이미 입력됨" },
+          "422": { description: "A/B 양쪽 화자 대화를 추출하지 못함" },
+          "500": { description: "캡처 처리 실패" },
+        },
+      },
+    },
+    "/sessions/{sessionId}/analysis-status": {
+      get: {
+        summary: "분석 상태 조회",
+        tags: ["Analysis"],
+        security: bearerSecurity,
+        responses: {
+          "200": { description: "분석 상태 조회 성공", content: jsonResponse },
+          "401": { description: "인증 실패" },
+          "403": { description: "세션 참여자가 아님" },
+          "404": { description: "세션을 찾을 수 없음" },
+          "500": { description: "분석 상태 조회 실패" },
         },
       },
     },
     "/sessions/{sessionId}/results/dual": {
       get: {
-        summary: "2인 모드 모델 분석 결과 조회",
-        description:
-          "실제 요청 URI는 /sessions/{sessionId}/results/dual 입니다. 2인 모드 세션에서 statement 분류 결과, 대응 문장 정렬 결과, 공통 지점, 핵심 긴장요인을 반환합니다.",
+        summary: "2인 모드 분석 결과 조회",
         tags: ["Analysis"],
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "sessionId",
-            in: "path",
-            required: true,
-            schema: {
-              type: "string",
-              format: "uuid",
-            },
-            description: "조회할 2인 모드 세션 ID",
-          },
-        ],
+        security: bearerSecurity,
         responses: {
-          "200": {
-            description: "2인 모드 분석 결과 조회 성공",
-            content: {
-              "application/json": {
-                example: {
-                  success: true,
-                  message: "2인 모드 분석 결과 조회 성공",
-                  data: {
-                    session: {
-                      id: "5f2748d9-eb79-4064-9eb7-b8281e17c8ef",
-                      status: "DONE",
-                      relationshipType: "FRIEND",
-                      mode: "DUAL",
-                      createdAt: "2026-05-09T15:36:24.346Z",
-                      updatedAt: "2026-05-09T15:36:32.389Z",
-                    },
-                    statements: {
-                      A: [
-                        {
-                          id: "524c4caa-7b75-41d5-8a30-8f1ab6b4361a",
-                          speaker: "A",
-                          text: "어제 너가 약속 시간보다 30분 늦었어",
-                          spanStart: 0,
-                          spanEnd: 21,
-                          label: "FACT",
-                          confidence: 0.9953,
-                        },
-                      ],
-                      B: [
-                        {
-                          id: "6df6f6ad-a7aa-481d-9e9f-5ecb73c4270e",
-                          speaker: "B",
-                          text: "어제 내가 늦은 건 맞아",
-                          spanStart: 0,
-                          spanEnd: 13,
-                          label: "INTERPRETATION",
-                          confidence: 0.9314,
-                        },
-                      ],
-                    },
-                    alignedPairs: [
-                      {
-                        id: "7d0be37d-0925-4b03-954d-304235561a63",
-                        similarity: 0.7718,
-                        pairType: "NEED_ALIGNMENT",
-                        pairTypeDisplayName: "공통 니즈",
-                        aStatement: {
-                          id: "2da181b8-a5f1-46ef-9802-d1074f5f6b3b",
-                          text: "다음에는 미리 연락해줬으면 좋겠어",
-                          label: "NEED",
-                          confidence: 0.9999,
-                          spanStart: 35,
-                          spanEnd: 53,
-                        },
-                        bStatement: {
-                          id: "f6d2ab53-61c0-4f36-83b2-62bca53eeaea",
-                          text: "다음엔 늦으면 먼저 연락할게",
-                          label: "NEED",
-                          confidence: 0.9960,
-                          spanStart: 31,
-                          spanEnd: 46,
-                        },
-                      },
-                    ],
-                    commonGroundPairs: [
-                      {
-                        id: "7d0be37d-0925-4b03-954d-304235561a63",
-                        similarity: 0.7718,
-                        pairType: "NEED_ALIGNMENT",
-                        pairTypeDisplayName: "공통 니즈",
-                      },
-                    ],
-                    tensions: [
-                      {
-                        id: "34696e42-8db1-4618-8a45-942b3c671fa1",
-                        type: "PERSPECTIVE_GAP",
-                        displayName: "관점 차이",
-                        rationale:
-                          "한쪽은 사실을 말하고 다른 한쪽은 해석을 말해 관점 차이가 핵심 긴장일 수 있습니다.",
-                        createdAt: "2026-05-09T15:36:32.249Z",
-                        evidence: [
-                          {
-                            statementId: "524c4caa-7b75-41d5-8a30-8f1ab6b4361a",
-                            speaker: "A",
-                            text: "어제 너가 약속 시간보다 30분 늦었어",
-                            label: "FACT",
-                            confidence: 0.9953,
-                            spanStart: 0,
-                            spanEnd: 21,
-                          },
-                        ],
-                      },
-                    ],
-                    summary: {
-                      aStatementCount: 3,
-                      bStatementCount: 3,
-                      alignedPairCount: 3,
-                      commonGroundPairCount: 1,
-                      tensionCount: 2,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          "401": { description: "인증 실패 또는 로그인 필요" },
+          "200": { description: "2인 모드 분석 결과 조회 성공", content: jsonResponse },
+          "401": { description: "인증 실패" },
           "403": { description: "세션 참여자가 아님" },
           "404": { description: "세션을 찾을 수 없음" },
           "409": { description: "2인 모드 세션이 아님" },
@@ -564,333 +344,48 @@ export const swaggerSpec = {
       get: {
         summary: "저장된 LLM 분석 결과 조회",
         tags: ["LLM"],
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "sessionId",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            description: "세션 ID",
-          },
-        ],
+        security: bearerSecurity,
         responses: {
-          "200": {
-            description: "LLM 분석 결과 조회 성공",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean", example: true },
-                    data: {
-                      type: "object",
-                      properties: {
-                        mode: { type: "string", example: "DUAL" },
-                        resultText: {
-                          type: "string",
-                          example: "1. 갈등이 가장 커진 지점 ...",
-                        },
-                        sections: {
-                          type: "object",
-                          description: "결과 화면의 요소별 상세 분석 카드에 바로 표시할 문장",
-                          properties: {
-                            facts: {
-                              type: "object",
-                              example: {
-                                a: "A가 인식한 객관 상황",
-                                b: "B가 인식한 객관 상황",
-                              },
-                            },
-                            interpretations: {
-                              type: "object",
-                              example: {
-                                a: "A의 해석",
-                                b: "B의 해석",
-                              },
-                            },
-                            emotions: {
-                              type: "object",
-                              example: {
-                                a: "A가 느낀 감정",
-                                b: "B가 느낀 감정",
-                              },
-                            },
-                            needs: {
-                              type: "object",
-                              example: {
-                                a: "A가 바라는 점",
-                                b: "B가 바라는 점",
-                              },
-                            },
-                            questions: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["서로에게 어떤 의미였나요?"],
-                            },
-                          },
-                        },
-                        diagramKeywords: {
-                          type: "object",
-                          description: "다이어그램 노드/칩에 넣을 짧은 키워드",
-                          properties: {
-                            coreConflict: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["기대 차이", "소통 부족"],
-                            },
-                            facts: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["약속 시간", "연락 여부"],
-                            },
-                            interpretations: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["무시당함", "상황 차이"],
-                            },
-                            emotions: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["서운함", "당황"],
-                            },
-                            needs: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["사전 연락", "이해"],
-                            },
-                            relationshipShift: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["확인하기", "감정 공유"],
-                            },
-                            questions: {
-                              type: "array",
-                              items: { type: "string" },
-                              example: ["기대", "합의"],
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          "200": { description: "LLM 분석 결과 조회 성공", content: jsonResponse },
           "404": { description: "저장된 LLM 결과 없음" },
           "500": { description: "LLM 결과 조회 실패" },
         },
       },
       post: {
-        summary: "모델 분석 결과를 LLM으로 정리해 저장",
+        summary: "LLM 분석 결과 생성",
         tags: ["LLM"],
-        security: [{ bearerAuth: [] }],
-        parameters: [
-          {
-            name: "sessionId",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            description: "세션 ID",
-          },
-        ],
+        security: bearerSecurity,
         responses: {
-          "201": {
-            description: "LLM 분석 결과 생성 성공",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean", example: true },
-                    data: {
-                      type: "object",
-                      properties: {
-                        mode: { type: "string", example: "DUAL" },
-                        resultText: {
-                          type: "string",
-                          example: "1. 갈등이 가장 커진 지점 ...",
-                        },
-                        sections: {
-                          type: "object",
-                          description: "결과 화면의 요소별 상세 분석 카드에 바로 표시할 문장",
-                        },
-                        diagramKeywords: {
-                          type: "object",
-                          description: "다이어그램 노드/칩에 넣을 짧은 키워드",
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
+          "201": { description: "LLM 분석 결과 생성 성공", content: jsonResponse },
           "404": { description: "모델 분석 결과 없음" },
-          "409": { description: "모델 분석 미완료" },
-          "500": { description: "LLM 결과 생성 실패" },
+          "409": { description: "모델 분석이 아직 완료되지 않음" },
+          "500": { description: "LLM 분석 생성 실패" },
         },
       },
     },
-    "/sessions/history": {
-  get: {
-    summary: "과거 세션 목록 조회",
-    tags: ["History"],
-    security: [{ bearerAuth: [] }],
-    responses: {
-      "200": {
-        description: "히스토리 조회 성공",
-      },
-      "401": {
-        description: "인증 실패 또는 로그인 필요",
-      },
-      "500": {
-        description: "히스토리 조회 실패",
-      },
-    },
-  },
-},
-"/llm/sessions/{sessionId}/evidence": {
-  get: {
-    summary: "LLM 대표 키워드 원문 근거 조회",
-    description:
-      "LLM 결과의 대표 키워드별 원문 근거 데이터를 조회합니다.",
-    tags: ["LLM"],
-    security: [{ bearerAuth: [] }],
-
-    parameters: [
-      {
-        name: "sessionId",
-        in: "path",
-        required: true,
-        schema: {
-          type: "string",
-          format: "uuid",
-        },
-        description: "조회할 세션 ID",
-      },
-    ],
-
-    responses: {
-      "200": {
-        description: "LLM 원문 근거 데이터 조회 성공",
-        content: {
-          "application/json": {
-            example: {
-              success: true,
-              message: "LLM 원문 근거 데이터 조회 성공",
-              data: {
-                sessionId:
-                  "5f2748d9-eb79-4064-9eb7-b8281e17c8ef",
-
-                mode: "DUAL",
-
-                keywordEvidence: {
-                  emotions: [
-                    {
-                      keyword: "서운함",
-
-                      label: "EMOTION",
-
-                      evidence: [
-                        {
-                          statementId:
-                            "524c4caa-7b75-41d5-8a30-8f1ab6b4361a",
-
-                          speaker: "A",
-
-                          text:
-                            "연락 한 통 없는 게 너무 서운했어",
-
-                          label: "EMOTION",
-
-                          confidence: 0.9921,
-
-                          confidencePercent: 99,
-
-                          similarity: 0.7124,
-
-                          similarityPercent: 71,
-
-                          spanStart: 14,
-
-                          spanEnd: 33,
-                        },
-                      ],
-                    },
-                  ],
-
-                  facts: [],
-
-                  interpretations: [],
-
-                  needs: [],
+    "/test/image": {
+      post: {
+        summary: "이미지 업로드 테스트",
+        tags: ["Test"],
+        requestBody: {
+          required: true,
+          content: {
+            "multipart/form-data": {
+              schema: {
+                type: "object",
+                required: ["image"],
+                properties: {
+                  image: { type: "string", format: "binary" },
                 },
-
-                tensions: [
-                  {
-                    id:
-                      "34696e42-8db1-4618-8a45-942b3c671fa1",
-
-                    type: "PERSPECTIVE_GAP",
-
-                    rationale:
-                      "한쪽은 사실을 중심으로 이야기하고 다른 한쪽은 상황 해석에 집중하고 있습니다.",
-
-                    evidence: [
-                      {
-                        statementId:
-                          "524c4caa-7b75-41d5-8a30-8f1ab6b4361a",
-
-                        speaker: "A",
-
-                        text:
-                          "연락 한 통 없는 게 너무 서운했어",
-
-                        label: "EMOTION",
-
-                        confidence: 0.9921,
-
-                        confidencePercent: 99,
-
-                        spanStart: 14,
-
-                        spanEnd: 33,
-                      },
-                    ],
-                  },
-                ],
-
-                createdAt:
-                  "2026-05-16T03:10:22.121Z",
-
-                updatedAt:
-                  "2026-05-16T03:10:22.121Z",
               },
             },
           },
         },
-      },
-
-      "401": {
-        description: "인증 실패",
-      },
-
-      "403": {
-        description: "세션 참여자가 아님",
-      },
-
-      "404": {
-        description: "저장된 LLM 결과 없음",
-      },
-
-      "500": {
-        description: "LLM 원문 근거 데이터 조회 실패",
+        responses: {
+          "200": { description: "이미지 업로드 성공", content: jsonResponse },
+        },
       },
     },
-  },
-},
   },
 };
 
