@@ -3,8 +3,13 @@
   "info": {
     "title": "TigyeokTaegyeok API",
     "version": "0.1.0",
-    "description": "Backend API skeleton for the capstone project"
+    "description": "AI 기반 갈등 구조화 서비스 백엔드 API"
   },
+  "servers": [
+    {
+      "url": "http://localhost:4000"
+    }
+  ],
   "components": {
     "securitySchemes": {
       "bearerAuth": {
@@ -14,140 +19,106 @@
       }
     }
   },
-  "servers": [
-    {
-      "url": "http://localhost:4000"
-    }
-  ],
   "paths": {
     "/health": {
       "get": {
-        "summary": "Health check",
+        "summary": "서버 상태 확인",
+        "tags": ["System"],
         "responses": {
           "200": {
-            "description": "Server health response"
+            "description": "서버 정상 응답"
           }
         }
       }
     },
-    "/auth/google/login": {
-      "get": {
-        "summary": "Google OAuth login entrypoint",
+    "/sessions": {
+      "post": {
+        "summary": "세션 생성",
+        "tags": ["Sessions"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
-          "302": {
-            "description": "Google OAuth 인증 페이지로 리다이렉트"
-          },
-          "500": {
-            "description": "Google OAuth 설정 누락"
-          }
+          "201": { "description": "세션 생성 성공" },
+          "400": { "description": "입력 검증 실패" },
+          "401": { "description": "인증 실패 또는 로그인 필요" },
+          "500": { "description": "세션 생성 실패" }
         }
       }
     },
-    "/auth/google/callback": {
-      "get": {
-        "summary": "Google OAuth callback",
+    "/sessions/{sessionId}/inputs": {
+      "post": {
+        "summary": "텍스트 입력 제출",
+        "tags": ["Inputs"],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [
           {
-            "name": "code",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "error",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "responses": {
-          "302": {
-            "description": "로그인 성공 후 Swagger로 리다이렉트"
-          },
-          "400": {
-            "description": "Google OAuth 요청 오류"
-          },
-          "500": {
-            "description": "Callback 처리 오류"
-          },
-          "502": {
-            "description": "Google API 연동 오류"
-          }
+          "201": { "description": "입력 저장 및 분석 처리 성공" },
+          "400": { "description": "입력 검증 실패 또는 moderation 차단" },
+          "401": { "description": "인증 실패 또는 로그인 필요" },
+          "403": { "description": "세션 참여자가 아님" },
+          "404": { "description": "세션을 찾을 수 없음" },
+          "409": { "description": "이미 입력이 제출됨" },
+          "500": { "description": "입력 저장 실패" }
         }
       }
     },
-    "/users/me": {
-      "get": {
-        "summary": "로그인 사용자 프로필 조회",
-        "tags": [
-          "Users"
-        ],
-        "security": [
+    "/sessions/{sessionId}/inputs/kakao-captures": {
+      "post": {
+        "summary": "카카오톡 캡처 이미지 입력 제출",
+        "description": "여러 장의 카카오톡 대화 캡처를 배열 순서대로 gpt-5.1로 파싱하고, A/B OCR 텍스트를 input_texts.ocr_text에 저장한 뒤 기존 FEIN 2인 분석 흐름을 실행합니다.",
+        "tags": ["Inputs"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
           {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "프로필 조회 성공"
-          },
-          "401": {
-            "description": "인증 실패 또는 로그인 필요"
-          },
-          "404": {
-            "description": "사용자 없음"
-          },
-          "500": {
-            "description": "프로필 조회 실패"
-          }
-        }
-      }
-    },
-    "/users/me/profile": {
-      "patch": {
-        "summary": "로그인 사용자 프로필 저장",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["images"],
+                "properties": {
+                  "images": {
+                    "type": "array",
+                    "description": "카카오톡 캡처 이미지 파일들입니다. Swagger에서 여러 파일을 선택할 수 있습니다.",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            },
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "gender": {
-                    "type": "string",
-                    "enum": [
-                      "M",
-                      "F",
-                      "OTHER",
-                      "UNSPECIFIED"
-                    ],
-                    "nullable": true
-                  },
-                  "age": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 130,
-                    "nullable": true
-                  }
-                }
-              },
-              "examples": {
-                "saveProfile": {
-                  "value": {
-                    "gender": "M",
-                    "age": 24
+                  "images": {
+                    "type": "array",
+                    "description": "이미지는 배열 순서대로 읽어 하나의 대화로 합칩니다.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "imageDataUrl": { "type": "string" },
+                        "imageBase64": { "type": "string" },
+                        "mimeType": {
+                          "type": "string",
+                          "enum": ["image/png", "image/jpeg", "image/webp"]
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -155,38 +126,37 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "프로필 저장 성공"
-          },
-          "400": {
-            "description": "입력 검증 실패"
-          },
-          "401": {
-            "description": "인증 실패 또는 로그인 필요"
-          },
-          "404": {
-            "description": "사용자 없음"
-          }
+          "201": { "description": "캡처 입력 저장 및 FEIN 분석 실행 성공" },
+          "400": { "description": "이미지 입력 오류 또는 moderation 차단" },
+          "401": { "description": "인증 실패 또는 로그인 필요" },
+          "403": { "description": "세션 참여자가 아님" },
+          "404": { "description": "세션을 찾을 수 없음" },
+          "409": { "description": "DUAL 세션이 아니거나 이미 입력됨" },
+          "422": { "description": "A/B 양쪽 화자 대화를 추출하지 못함" },
+          "500": { "description": "캡처 처리 실패" }
         }
       }
     },
-    "/swagger.json": {
+    "/llm/sessions/{sessionId}/analysis": {
       "get": {
-        "summary": "OpenAPI JSON document",
+        "summary": "저장된 LLM 분석 결과 조회",
+        "tags": ["LLM"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
-          "200": {
-            "description": "Swagger specification document"
-          }
+          "200": { "description": "LLM 분석 결과 조회 성공" },
+          "404": { "description": "저장된 LLM 결과 없음" },
+          "500": { "description": "LLM 결과 조회 실패" }
         }
-      }
-    },
-    "/api-docs": {
-      "get": {
-        "summary": "Swagger UI",
+      },
+      "post": {
+        "summary": "LLM 분석 결과 생성",
+        "tags": ["LLM"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
-          "200": {
-            "description": "Swagger UI page"
-          }
+          "201": { "description": "LLM 분석 결과 생성 성공" },
+          "404": { "description": "모델 분석 결과 없음" },
+          "409": { "description": "모델 분석이 아직 완료되지 않음" },
+          "500": { "description": "LLM 분석 생성 실패" }
         }
       }
     }
