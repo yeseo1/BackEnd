@@ -13,4 +13,5 @@ __pycache__/
 .python-packages/
 cap2_modelserver/.venv/
 cap2_modelserver/.python-packages/
-
+artifacts/
+.scripts/
