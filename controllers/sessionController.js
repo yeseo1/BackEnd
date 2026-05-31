@@ -17,12 +17,18 @@ function isValidRoomPassword(roomPassword) {
     /^[0-9]{4}$/.test(roomPassword)
   );
 }
+function isValidNickname(nickname) {
+  return (
+    typeof nickname === "string" &&
+    nickname.trim().length > 0 &&
+    nickname.trim().length <= 20
+  );
+}
 
 export const sessionController = {
   async createSession(req, res) {
     try {
-      const { relationshipType, mode, roomPassword } = req.body;
-
+      const { relationshipType, mode, roomPassword, nickname } = req.body;
       if (!relationshipType || !VALID_RELATIONSHIP_TYPES.includes(relationshipType)) {
         return res.status(400).json({
           success: false,
@@ -53,12 +59,23 @@ export const sessionController = {
         });
       }
 
-      const result = await sessionModel.createSession({
-        ownerUserId: req.user.id,
-        relationshipType,
-        mode: mode || "DUAL",
-        roomPassword,
-      });
+      if (!isValidNickname(nickname)) {
+  return res.status(400).json({
+    success: false,
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "nickname은 1자 이상 20자 이하로 입력해야 합니다.",
+    },
+  });
+}
+
+    const result = await sessionModel.createSession({
+   ownerUserId: req.user.id,
+   relationshipType,
+    mode: mode || "DUAL",
+   roomPassword,
+    nickname: nickname.trim(),
+});
 
       return res.status(201).json({
         success: true,
@@ -79,7 +96,7 @@ export const sessionController = {
   async joinSession(req, res) {
     try {
       const { sessionId } = req.params;
-      const { roomPassword } = req.body;
+      const { roomPassword, nickname  } = req.body;
 
       if (!isValidRoomPassword(roomPassword)) {
         return res.status(400).json({
@@ -90,12 +107,21 @@ export const sessionController = {
           },
         });
       }
-
+      if (!isValidNickname(nickname)) {
+  return res.status(400).json({
+    success: false,
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "nickname은 1자 이상 20자 이하로 입력해야 합니다.",
+    },
+  });
+}
       const result = await sessionModel.joinSession({
-        sessionId,
-        userId: req.user.id,
-        roomPassword,
-      });
+  sessionId,
+  userId: req.user.id,
+  roomPassword,
+  nickname: nickname.trim(),
+});
 
       return res.status(200).json({
         success: true,
@@ -176,6 +202,7 @@ export const sessionController = {
           sessionId: session.id,
           status: session.status,
           myRole: session.role,
+          myNickname: session.nickname,
           bothSubmitted: session.bothSubmitted,
         },
       });

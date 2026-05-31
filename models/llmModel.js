@@ -94,10 +94,11 @@ async function getSessionAndParticipant({ sessionId, userId }) {
   const result = await db.query(
     `
     SELECT
-      s.id,
-      s.mode,
-      s.status,
-      sp.role
+     s.id,
+     s.mode,
+     s.status,
+     s.relationship_type,
+     sp.role
     FROM sessions s
     JOIN session_participants sp ON sp.session_id = s.id
     WHERE s.id = $1 AND sp.user_id = $2
@@ -253,7 +254,28 @@ function keywordMatchScore(keyword, text) {
 export const llmModel = {
   async getSessionContext({ sessionId, userId }) {
     const session = await getSessionAndParticipant({ sessionId, userId });
+    const participantsResult = await db.query(
+  `
+  SELECT
+    sp.role,
+    u.name,
+    u.gender,
+    u.age
+  FROM session_participants sp
+  JOIN users u ON u.id = sp.user_id
+  WHERE sp.session_id = $1
+  ORDER BY
+    CASE sp.role
+      WHEN 'A' THEN 1
+      WHEN 'B' THEN 2
+      WHEN 'SELF' THEN 3
+      ELSE 4
+    END
+  `,
+  [sessionId],
+);
 
+const participants = participantsResult.rows;
     const statementsResult = await db.query(
       `
       SELECT id, speaker, text, label, confidence, span_start, span_end
@@ -362,11 +384,13 @@ export const llmModel = {
 
     return {
       session: {
-        id: session.id,
-        mode: session.mode,
-        status: session.status,
-        participantRole: session.role,
-      },
+  id: session.id,
+  mode: session.mode,
+  status: session.status,
+  relationshipType: session.relationship_type,
+  participantRole: session.role,
+},
+participants,
       statements,
       statementsBySpeaker: {
         A: statements.filter((statement) => statement.speaker === "A"),

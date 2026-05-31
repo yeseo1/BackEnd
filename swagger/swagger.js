@@ -143,11 +143,17 @@ export const swaggerSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["relationshipType", "roomPassword"],
+                required: ["relationshipType", "roomPassword", "nickname"],
                 properties: {
                   relationshipType: {
                     type: "string",
                     enum: ["COUPLE", "FRIEND", "FAMILY", "ROOMMATE", "TEAM", "OTHER"],
+                  },
+                  nickname: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 20,
+                    example: "혜성",
                   },
                   mode: { type: "string", enum: ["DUAL", "SINGLE"], default: "DUAL" },
                   roomPassword: { type: "string", example: "1234" },
@@ -183,9 +189,15 @@ export const swaggerSpec = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["roomPassword"],
+                required: ["roomPassword", "nickname"],
                 properties: {
                   roomPassword: { type: "string", example: "1234" },
+                  nickname: {
+                   type: "string",
+                   minLength: 1,
+                   maxLength: 20,
+                   example: "박박박",
+},
                 },
               },
             },
