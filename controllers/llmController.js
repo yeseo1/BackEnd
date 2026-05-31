@@ -63,6 +63,16 @@ function formatTensions(tensions) {
 }
 
 function formatAlignedPairs(alignedPairs) {
+  function formatParticipants(participants) {
+  if (!participants?.length) return "- 없음";
+
+  return participants
+    .map(
+      (p) =>
+        `${p.role}: 성별=${p.gender || "미입력"}, 나이=${p.age ?? "미입력"}`
+    )
+    .join("\n");
+}
   if (!alignedPairs.length) return "- 없음";
 
   return alignedPairs
