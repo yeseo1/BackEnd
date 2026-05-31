@@ -175,12 +175,17 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-async function buildKeywordEvidence({ diagramKeywords, statements }) {
+async function buildKeywordEvidence({ diagramKeywords, statements, visibleSpeaker }) {
   const result = {};
+
+  // 새 구조: diagramKeywords.a / diagramKeywords.b / diagramKeywords.common
+  // 본인 키워드(a 또는 b)에 대해서만 evidence를 빌드 (공통·상대방은 원문 미표시)
+  const speakerKey = visibleSpeaker === "A" ? "a" : visibleSpeaker === "B" ? "b" : "self";
+  const ownKeywords = diagramKeywords?.[speakerKey] || {};
 
   for (const section of ["facts", "emotions", "interpretations", "needs"]) {
     const label = SECTION_TO_LABEL[section];
-    const keywords = normalizeKeywords(diagramKeywords?.[section]);
+    const keywords = normalizeKeywords(ownKeywords[section] ?? diagramKeywords?.[section]);
 
     const sectionStatements = statements.filter(
       (statement) => statement.label === label,
@@ -258,7 +263,7 @@ export const llmModel = {
   `
   SELECT
     sp.role,
-    u.name,
+    COALESCE(sp.nickname, u.name) AS name,
     u.gender,
     u.age
   FROM session_participants sp
@@ -558,9 +563,10 @@ const visibleStatements = (sourceSnapshot.statements || []).filter(
       sessionId: row.session_id,
       mode: row.mode,
       keywordEvidence: await buildKeywordEvidence({
-  diagramKeywords: structuredResult.diagramKeywords || {},
-  statements: visibleStatements,
-}),
+        diagramKeywords: structuredResult.diagramKeywords || {},
+        statements: visibleStatements,
+        visibleSpeaker,
+      }),
       tensions: (sourceSnapshot.tensions || []).map((tension) => ({
         id: tension.id,
         type: tension.type,
