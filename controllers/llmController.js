@@ -62,19 +62,17 @@ function formatTensions(tensions) {
     .join("\n");
 }
 
-function formatParticipants(participants) {
+function formatAlignedPairs(alignedPairs) {
+  function formatParticipants(participants) {
   if (!participants?.length) return "- 없음";
+
   return participants
-    .map((p) => {
-      const name   = p.name   || p.role;
-      const gender = p.gender || "미입력";
-      const age    = p.age    != null ? `${p.age}세` : "미입력";
-      return `${p.role} (${name}): 성별=${gender}, 나이=${age}`;
-    })
+    .map(
+      (p) =>
+        `${p.role}: 성별=${p.gender || "미입력"}, 나이=${p.age ?? "미입력"}`
+    )
     .join("\n");
 }
-
-function formatAlignedPairs(alignedPairs) {
   if (!alignedPairs.length) return "- 없음";
 
   return alignedPairs
@@ -142,23 +140,15 @@ diagramKeywords 규칙:
 }
 
 function buildDualPrompt(context) {
-  const aInfo = context.participants?.find((p) => p.role === "A");
-  const bInfo = context.participants?.find((p) => p.role === "B");
-  const aLabel = aInfo?.name || "A";
-  const bLabel = bInfo?.name || "B";
-
   return `
-아래는 두 사람이 함께 입력한 갈등 원문을 모델서버가 FEIN 기준으로 분류하고 정렬한 결과입니다.
+아래는 사용자가 입력한 2인 갈등 원문을 모델서버가 FEIN 기준으로 분류하고 정렬한 결과입니다.
 이 데이터를 바탕으로 결과 화면 카드와 다이어그램에 바로 사용할 최종 분석 데이터를 만드세요.
 분석은 짧은 요약이 아니라, 상담사가 양쪽 이야기를 듣고 핵심 패턴과 다음 대화 방향을 짚어주는 글이어야 합니다.
 
-[참여자 정보]
-${formatParticipants(context.participants)}
-
-[${aLabel} 발화]
+[A 발화]
 ${formatStatements(context.statementsBySpeaker.A)}
 
-[${bLabel} 발화]
+[B 발화]
 ${formatStatements(context.statementsBySpeaker.B)}
 
 [공통점과 차이 정렬]
@@ -189,17 +179,10 @@ function buildSinglePrompt(context) {
       ? context.statementsBySpeaker.SELF
       : context.statementsBySpeaker.A;
 
-  const selfInfo = context.participants?.find(
-    (p) => p.role === "SELF" || p.role === "A"
-  );
-
   return `
 아래는 사용자가 혼자 입력한 갈등 원문을 모델서버가 FEIN 기준으로 분류한 결과입니다.
 이 데이터를 바탕으로 1인 모드 결과 화면 카드와 다이어그램에 바로 사용할 최종 분석 데이터를 만드세요.
 분석은 짧은 요약이 아니라, 상담사가 사용자의 말을 정리해주고 다음 행동을 조언하는 글이어야 합니다.
-
-[참여자 정보]
-이름: ${selfInfo?.name || "사용자"}, 성별: ${selfInfo?.gender || "미입력"}, 나이: ${selfInfo?.age != null ? `${selfInfo.age}세` : "미입력"}
 
 [사용자 발화]
 ${formatStatements(selfStatements)}
