@@ -155,6 +155,16 @@ export const analysisModel = {
       throw new Error("INVALID_SESSION_MODE");
     }
 
+    const participantsResult = await db.query(
+      `SELECT sp.role, COALESCE(sp.nickname, u.name) AS name
+       FROM session_participants sp
+       JOIN users u ON u.id = sp.user_id
+       WHERE sp.session_id = $1
+       ORDER BY CASE sp.role WHEN 'A' THEN 1 WHEN 'B' THEN 2 ELSE 3 END`,
+      [sessionId],
+    );
+    const participants = participantsResult.rows;
+
     const statements = await getStatementsBySessionId(sessionId);
     const statementsBySpeaker = {
       A: statements.filter((statement) => statement.speaker === "A"),
@@ -269,6 +279,7 @@ export const analysisModel = {
 
     return {
       session: mapSessionRow(session),
+      participants,
       statements: statementsBySpeaker,
       alignedPairs,
       commonGroundPairs,

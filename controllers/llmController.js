@@ -18,17 +18,10 @@ const EMPTY_SECTIONS = {
 };
 
 const EMPTY_DIAGRAM_KEYWORDS = {
-  common: {
-    coreConflict: [],
-    facts: [],
-    interpretations: [],
-    emotions: [],
-    needs: [],
-    relationshipShift: [],
-    questions: [],
-  },
-  a: { facts: [], interpretations: [], emotions: [], needs: [] },
-  b: { facts: [], interpretations: [], emotions: [], needs: [] },
+  coreConflict: [],
+  a:      { facts: [], interpretations: [], emotions: [], needs: [] },
+  b:      { facts: [], interpretations: [], emotions: [], needs: [] },
+  common: { facts: [], emotions: [], needs: [] },
 };
 
 function formatStatements(statements) {
@@ -62,17 +55,19 @@ function formatTensions(tensions) {
     .join("\n");
 }
 
-function formatAlignedPairs(alignedPairs) {
-  function formatParticipants(participants) {
+function formatParticipants(participants) {
   if (!participants?.length) return "- 없음";
-
   return participants
-    .map(
-      (p) =>
-        `${p.role}: 성별=${p.gender || "미입력"}, 나이=${p.age ?? "미입력"}`
-    )
+    .map((p) => {
+      const name   = p.name   || p.role;
+      const gender = p.gender || "미입력";
+      const age    = p.age != null ? `${p.age}세` : "미입력";
+      return `${p.role} (${name}): 성별=${gender}, 나이=${age}`;
+    })
     .join("\n");
 }
+
+function formatAlignedPairs(alignedPairs) {
   if (!alignedPairs.length) return "- 없음";
 
   return alignedPairs
@@ -85,11 +80,41 @@ function formatAlignedPairs(alignedPairs) {
     .join("\n");
 }
 
-function buildJsonContract(mode) {
+function buildJsonContract(mode, aLabel = "A", bLabel = "B") {
   const speakerShape =
     mode === "SINGLE"
       ? `{ "self": "문장" }`
-      : `{ "a": "A 입장 문장", "b": "B 입장 문장" }`;
+      : `{ "a": "${aLabel}의 입장 문장", "b": "${bLabel}의 입장 문장" }`;
+
+  const diagramKeywordsShape =
+    mode === "SINGLE"
+      ? `{
+    "coreConflict": ["핵심 생각 키워드 1", "키워드 2"],
+    "facts": ["사실 키워드들 (개수 제한 없음, 원문 기반)"],
+    "interpretations": ["해석 키워드들"],
+    "emotions": ["감정 키워드들"],
+    "needs": ["요구·욕구 키워드들"]
+  }`
+      : `{
+    "coreConflict": ["핵심 갈등 키워드 1", "키워드 2"],
+    "a": {
+      "facts": ["${aLabel}가 언급한 사실 키워드들 (개수 제한 없음)"],
+      "interpretations": ["${aLabel}의 해석 키워드들"],
+      "emotions": ["${aLabel}의 감정 키워드들"],
+      "needs": ["${aLabel}의 요구 키워드들"]
+    },
+    "b": {
+      "facts": ["${bLabel}가 언급한 사실 키워드들 (개수 제한 없음)"],
+      "interpretations": ["${bLabel}의 해석 키워드들"],
+      "emotions": ["${bLabel}의 감정 키워드들"],
+      "needs": ["${bLabel}의 요구 키워드들"]
+    },
+    "common": {
+      "facts": ["두 사람이 공통으로 언급한 사실 키워드들"],
+      "emotions": ["두 사람이 공통으로 느낀 감정 키워드들"],
+      "needs": ["두 사람이 공통으로 원하는 것 키워드들"]
+    }
+  }`;
 
   return `
 반드시 아래 JSON 객체 하나만 반환하세요. 마크다운 코드블록이나 JSON 밖 설명은 쓰지 마세요.
@@ -102,15 +127,7 @@ function buildJsonContract(mode) {
     "needs": ${speakerShape},
     "questions": ["함께 생각해볼 질문 1", "질문 2", "질문 3"]
   },
-  "diagramKeywords": {
-    "coreConflict": ["핵심 갈등 키워드 1", "키워드 2"],
-    "facts": ["사실 키워드 1", "사실 키워드 2"],
-    "interpretations": ["해석 키워드 1", "해석 키워드 2"],
-    "emotions": ["감정 키워드 1", "감정 키워드 2"],
-    "needs": ["욕구 키워드 1", "욕구 키워드 2"],
-    "relationshipShift": ["관계 전환 키워드 1", "키워드 2"],
-    "questions": ["질문 키워드 1", "질문 키워드 2"]
-  }
+  "diagramKeywords": ${diagramKeywordsShape}
 }
 
 resultText 작성 규칙:
@@ -132,23 +149,35 @@ sections 작성 규칙:
 - 빈약한 한 줄 요약, 키워드 나열, 막연한 위로 문구는 쓰지 마세요.
 
 diagramKeywords 규칙:
-- 각 배열은 2-5개입니다.
-- 각 키워드는 2-12자 정도의 짧은 한국어 명사구입니다.
-- 다이어그램 노드/칩에 바로 들어가도 어색하지 않게 작성하세요.
-- 원문에 없는 사실을 만들지 마세요.
+- 키워드 개수는 정해진 제한이 없어요. 원문과 분류 결과에 실제로 등장한 내용만큼만 추출하세요.
+  사실이 5개면 5개, 감정이 1개면 1개, 공통된 게 없으면 빈 배열([])로 두세요.
+- a, b 각각의 키워드는 해당 사람의 원문과 FEIN 분류 결과에서만 추출하세요. 상대방 내용을 섞지 마세요.
+- common은 두 사람이 실제로 공통으로 언급하거나 코사인 유사도로 겹치는 내용에서만 추출하세요.
+- 각 키워드는 2-10자 정도의 짧은 한국어 명사구로, 다이어그램 노드에 바로 들어가도 자연스럽게 작성하세요.
+- 원문에 없는 내용은 절대 만들지 마세요.
 `;
 }
 
 function buildDualPrompt(context) {
+  const aInfo = context.participants?.find((p) => p.role === "A");
+  const bInfo = context.participants?.find((p) => p.role === "B");
+  const aLabel = aInfo?.name || "A";
+  const bLabel = bInfo?.name || "B";
+
   return `
-아래는 사용자가 입력한 2인 갈등 원문을 모델서버가 FEIN 기준으로 분류하고 정렬한 결과입니다.
+아래는 두 사람이 함께 입력한 갈등 원문을 모델서버가 FEIN 기준으로 분류하고 정렬한 결과입니다.
 이 데이터를 바탕으로 결과 화면 카드와 다이어그램에 바로 사용할 최종 분석 데이터를 만드세요.
 분석은 짧은 요약이 아니라, 상담사가 양쪽 이야기를 듣고 핵심 패턴과 다음 대화 방향을 짚어주는 글이어야 합니다.
 
-[A 발화]
+[참여자 정보]
+${formatParticipants(context.participants)}
+
+⚠️ 중요: resultText와 sections 작성 시 "A", "B" 대신 반드시 실제 이름인 "${aLabel}"과 "${bLabel}"을 사용하세요.
+
+[${aLabel} 발화]
 ${formatStatements(context.statementsBySpeaker.A)}
 
-[B 발화]
+[${bLabel} 발화]
 ${formatStatements(context.statementsBySpeaker.B)}
 
 [공통점과 차이 정렬]
@@ -165,11 +194,12 @@ ${formatTensions(context.tensions)}
 - 말로 표현하지 않은 것, 즉 말 뒤에 숨겨진 기대나 상처도 살펴보세요.
 - 두 사람 사이에 반복되는 관계 패턴(예: 한 사람이 다가가면 한 사람은 물러서는 패턴, 인정받고 싶은 마음이 서로 충돌하는 상황 등)이 보이면 쉬운 말로 설명하세요.
 - 전문 용어(예: '방어 기제', '인지 패턴', '애착 욕구')는 쉬운 표현으로 함께 풀어 써주세요.
+- resultText와 sections에서 두 사람을 언급할 때 반드시 "${aLabel}", "${bLabel}"으로 쓰고 절대 "A", "B"라고 쓰지 마세요.
 - resultText는 상담사가 직접 이야기해주는 것처럼 따뜻하고 전문적인 문체로 작성하세요.
 - sections는 화면의 "요소별 상세 분석" 카드에 바로 들어갈 문장으로 작성하세요.
 - diagramKeywords는 다이어그램에 넣을 짧은 키워드만 추출하세요.
 
-${buildJsonContract("DUAL")}
+${buildJsonContract("DUAL", aLabel, bLabel)}
 `;
 }
 
@@ -262,13 +292,30 @@ function normalizeStructuredResult(parsed) {
       questions: normalizeStringArray(sections.questions).slice(0, 3),
     },
     diagramKeywords: {
-      coreConflict: normalizeStringArray(diagramKeywords.coreConflict).slice(0, 5),
-      facts: normalizeStringArray(diagramKeywords.facts).slice(0, 5),
-      interpretations: normalizeStringArray(diagramKeywords.interpretations).slice(0, 5),
-      emotions: normalizeStringArray(diagramKeywords.emotions).slice(0, 5),
-      needs: normalizeStringArray(diagramKeywords.needs).slice(0, 5),
-      relationshipShift: normalizeStringArray(diagramKeywords.relationshipShift).slice(0, 5),
-      questions: normalizeStringArray(diagramKeywords.questions).slice(0, 5),
+      coreConflict: normalizeStringArray(diagramKeywords.coreConflict),
+      // SINGLE 모드: flat 배열
+      facts:           normalizeStringArray(diagramKeywords.facts),
+      interpretations: normalizeStringArray(diagramKeywords.interpretations),
+      emotions:        normalizeStringArray(diagramKeywords.emotions),
+      needs:           normalizeStringArray(diagramKeywords.needs),
+      // DUAL 모드: a/b/common 구조
+      a: diagramKeywords.a ? {
+        facts:           normalizeStringArray(diagramKeywords.a?.facts),
+        interpretations: normalizeStringArray(diagramKeywords.a?.interpretations),
+        emotions:        normalizeStringArray(diagramKeywords.a?.emotions),
+        needs:           normalizeStringArray(diagramKeywords.a?.needs),
+      } : undefined,
+      b: diagramKeywords.b ? {
+        facts:           normalizeStringArray(diagramKeywords.b?.facts),
+        interpretations: normalizeStringArray(diagramKeywords.b?.interpretations),
+        emotions:        normalizeStringArray(diagramKeywords.b?.emotions),
+        needs:           normalizeStringArray(diagramKeywords.b?.needs),
+      } : undefined,
+      common: diagramKeywords.common ? {
+        facts:   normalizeStringArray(diagramKeywords.common?.facts),
+        emotions: normalizeStringArray(diagramKeywords.common?.emotions),
+        needs:    normalizeStringArray(diagramKeywords.common?.needs),
+      } : undefined,
     },
   };
 }
