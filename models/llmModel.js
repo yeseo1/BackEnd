@@ -94,10 +94,11 @@ async function getSessionAndParticipant({ sessionId, userId }) {
   const result = await db.query(
     `
     SELECT
-      s.id,
-      s.mode,
-      s.status,
-      sp.role
+     s.id,
+     s.mode,
+     s.status,
+     s.relationship_type,
+     sp.role
     FROM sessions s
     JOIN session_participants sp ON sp.session_id = s.id
     WHERE s.id = $1 AND sp.user_id = $2
@@ -174,12 +175,17 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-async function buildKeywordEvidence({ diagramKeywords, statements }) {
+async function buildKeywordEvidence({ diagramKeywords, statements, visibleSpeaker }) {
   const result = {};
+
+  // 새 구조: diagramKeywords.a / diagramKeywords.b / diagramKeywords.common
+  // 본인 키워드(a 또는 b)에 대해서만 evidence를 빌드 (공통·상대방은 원문 미표시)
+  const speakerKey = visibleSpeaker === "A" ? "a" : visibleSpeaker === "B" ? "b" : "self";
+  const ownKeywords = diagramKeywords?.[speakerKey] || {};
 
   for (const section of ["facts", "emotions", "interpretations", "needs"]) {
     const label = SECTION_TO_LABEL[section];
-    const keywords = normalizeKeywords(diagramKeywords?.[section]);
+    const keywords = normalizeKeywords(ownKeywords[section] ?? diagramKeywords?.[section]);
 
     const sectionStatements = statements.filter(
       (statement) => statement.label === label,
@@ -253,7 +259,28 @@ function keywordMatchScore(keyword, text) {
 export const llmModel = {
   async getSessionContext({ sessionId, userId }) {
     const session = await getSessionAndParticipant({ sessionId, userId });
+    const participantsResult = await db.query(
+  `
+  SELECT
+    sp.role,
+    COALESCE(sp.nickname, u.name) AS name,
+    u.gender,
+    u.age
+  FROM session_participants sp
+  JOIN users u ON u.id = sp.user_id
+  WHERE sp.session_id = $1
+  ORDER BY
+    CASE sp.role
+      WHEN 'A' THEN 1
+      WHEN 'B' THEN 2
+      WHEN 'SELF' THEN 3
+      ELSE 4
+    END
+  `,
+  [sessionId],
+);
 
+const participants = participantsResult.rows;
     const statementsResult = await db.query(
       `
       SELECT id, speaker, text, label, confidence, span_start, span_end
@@ -362,11 +389,13 @@ export const llmModel = {
 
     return {
       session: {
-        id: session.id,
-        mode: session.mode,
-        status: session.status,
-        participantRole: session.role,
-      },
+  id: session.id,
+  mode: session.mode,
+  status: session.status,
+  relationshipType: session.relationship_type,
+  participantRole: session.role,
+},
+participants,
       statements,
       statementsBySpeaker: {
         A: statements.filter((statement) => statement.speaker === "A"),
@@ -534,9 +563,10 @@ const visibleStatements = (sourceSnapshot.statements || []).filter(
       sessionId: row.session_id,
       mode: row.mode,
       keywordEvidence: await buildKeywordEvidence({
-  diagramKeywords: structuredResult.diagramKeywords || {},
-  statements: visibleStatements,
-}),
+        diagramKeywords: structuredResult.diagramKeywords || {},
+        statements: visibleStatements,
+        visibleSpeaker,
+      }),
       tensions: (sourceSnapshot.tensions || []).map((tension) => ({
         id: tension.id,
         type: tension.type,

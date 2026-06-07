@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import { db } from "../config/db.js";
 
 export const sessionModel = {
-  async createSession({ ownerUserId, relationshipType, mode, roomPassword }) {
+  async createSession({ ownerUserId, relationshipType, mode, roomPassword, nickname }) {
     const client = await db.connect();
 
     try {
@@ -37,12 +37,13 @@ export const sessionModel = {
           session_id,
           user_id,
           role,
+          nickname,
           joined_at
         )
-        VALUES ($1, $2, $3, NOW())
-        RETURNING id, session_id, user_id, role, joined_at
+        VALUES ($1, $2, $3, $4, NOW())
+        RETURNING id, session_id, user_id, role, nickname, joined_at
         `,
-        [session.id, ownerUserId, ownerRole],
+        [session.id, ownerUserId, ownerRole, nickname || null],
       );
 
       await client.query("COMMIT");
@@ -61,7 +62,7 @@ export const sessionModel = {
     }
   },
 
-  async joinSession({ sessionId, userId, roomPassword }) {
+  async joinSession({ sessionId, userId, roomPassword, nickname }) {
     const client = await db.connect();
 
     try {
@@ -123,12 +124,13 @@ export const sessionModel = {
           session_id,
           user_id,
           role,
+          nickname,
           joined_at
         )
-        VALUES ($1, $2, 'B', NOW())
-        RETURNING id, session_id, user_id, role, joined_at
+        VALUES ($1, $2, 'B', $3, NOW())
+        RETURNING id, session_id, user_id, role, nickname, joined_at
         `,
-        [sessionId, userId],
+        [sessionId, userId, nickname || null],
       );
 
       await client.query(
