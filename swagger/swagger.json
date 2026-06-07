@@ -1,4 +1,4 @@
-{
+﻿{
   "openapi": "3.0.0",
   "info": {
     "title": "TigyeokTaegyeok API",
@@ -71,7 +71,7 @@
     "/sessions/{sessionId}/inputs/kakao-captures": {
       "post": {
         "summary": "카카오톡 캡처 이미지 입력 제출",
-        "description": "여러 장의 카카오톡 대화 캡처를 배열 순서대로 gpt-5.1로 파싱하고, A/B OCR 텍스트를 input_texts.ocr_text에 저장한 뒤 기존 FEIN 2인 분석 흐름을 실행합니다.",
+        "description": "여러 장의 카카오톡 대화 캡처를 배열 순서대로 Google Vision OCR로 파싱하고, A/B OCR 텍스트를 input_texts.ocr_text에 저장한 뒤 기존 FEIN 2인 분석 흐름을 실행합니다.",
         "tags": ["Inputs"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [

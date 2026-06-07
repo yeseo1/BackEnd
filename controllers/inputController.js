@@ -19,6 +19,7 @@ const FEIN_MODEL_BASE_URL =
 const MAX_KAKAO_CAPTURE_IMAGES = Number(
   process.env.MAX_KAKAO_CAPTURE_IMAGES || 6,
 );
+const IS_DEVELOPMENT = process.env.NODE_ENV !== "production";
 
 async function moderateText(input) {
   const response = await client.moderations.create({
@@ -409,7 +410,6 @@ export const inputController = {
         imageBase64: req.body?.imageBase64,
         imageDataUrl: req.body?.imageDataUrl,
         mimeType: req.body?.mimeType,
-        client,
       });
 
       if (!parsed.messages.length) {
@@ -540,6 +540,48 @@ export const inputController = {
           error: {
             code: error.code,
             message: "At least one valid image is required.",
+          },
+        });
+      }
+
+      if (
+        error.code === "KAKAO_CAPTURE_OCR_CONFIG_MISSING" ||
+        error.code === "KAKAO_CAPTURE_OCR_CONFIG_INVALID"
+      ) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: error.code,
+            message:
+              error.details ||
+              "Google Vision OCR credentials are not configured.",
+          },
+        });
+      }
+
+      if (
+        error.code === "KAKAO_CAPTURE_OCR_AUTH_FAILED" ||
+        error.code === "KAKAO_CAPTURE_OCR_REQUEST_FAILED"
+      ) {
+        console.error("Kakao capture OCR failed", {
+          code: error.code,
+          message: error.details,
+          cause: error.cause?.message,
+        });
+
+        return res.status(502).json({
+          success: false,
+          error: {
+            code: error.code,
+            message:
+              error.details ||
+              "Google Vision OCR request failed.",
+            details: IS_DEVELOPMENT
+              ? {
+                  cause: error.cause?.message,
+                  googleCode: error.cause?.code,
+                }
+              : undefined,
           },
         });
       }

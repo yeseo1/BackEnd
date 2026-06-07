@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+﻿import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 
 dotenv.config();
@@ -242,7 +242,7 @@ export const swaggerSpec = {
       post: {
         summary: "카카오톡 캡처 이미지 입력 제출",
         description:
-          "Swagger에서 이미지 파일을 직접 선택해 업로드할 수 있습니다. 여러 장은 선택 순서대로 gpt-5.1이 읽고 하나의 대화로 합칩니다.",
+          "Swagger에서 이미지 파일을 직접 선택해 업로드할 수 있습니다. 여러 장은 선택 순서대로 Google Vision OCR이 읽고 하나의 대화로 합칩니다.",
         tags: ["Inputs"],
         security: bearerSecurity,
         parameters: [
